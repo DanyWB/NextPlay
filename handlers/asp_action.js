@@ -5,6 +5,8 @@ const {generateChartImage} = require("../utils/chartGenerator");
 const {monthsNames} = require("../utils/months");
 const {getMonthLabel} = require("../utils/months");
 const {formatAspComparison} = require("../utils/aspFormatter");
+const {showStatsMenu} = require("../commands/stats");
+
 module.exports = (bot) => {
   // Этап 1: выбор месяца
   bot.callbackQuery(/^stats_asp$/, async (ctx) => {
@@ -26,9 +28,15 @@ module.exports = (bot) => {
     }
     keyboard.text("🔙 Назад", "stats_back");
 
-    await ctx.editMessageText("📅 Выберите месяц для ASP:", {
-      reply_markup: keyboard,
-    });
+    if (ctx.callbackQuery?.message?.text) {
+      await ctx.editMessageText("📅 Выберите месяц для ASP:", {
+        reply_markup: keyboard,
+      });
+    } else {
+      await ctx.reply("📅 Выберите месяц для ASP:", {
+        reply_markup: keyboard,
+      });
+    }
   });
 
   // Этап 3: генерация графика
@@ -36,47 +44,55 @@ module.exports = (bot) => {
     const month = ctx.match[1];
     const userId = ctx.from.id;
 
-    await ctx.answerCallbackQuery(); // просто закрывает "часики"
-    await ctx.reply("🛠 Генерация графика, подождите...");
+    await ctx.answerCallbackQuery(); // закрывает "часики"
+
+    // ✅ удаляем сообщение с кнопками выбора месяца
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      console.warn("Не удалось удалить сообщение с кнопками:", e.message);
+    }
+
+    // ✅ отправим сообщение "генерация..."
+    const waitMsg = await ctx.reply("🛠 Генерация графика, подождите...");
 
     try {
       const user = await getUser(userId);
       if (!user || !user.athlete_id) {
         return ctx.reply("❌ Вы не верифицированы.");
       }
-      const aspData = await getAspData(user.athlete_id, month); // ✅
+
+      const aspData = await getAspData(user.athlete_id, month);
       if (!aspData) {
         return ctx.reply("⚠️ Недостаточно данных для построения графика.");
       }
 
-      //
-
-      const chartType = "radar";
-
-      const {image} = await generateChartImage(aspData, chartType); // ✅ деструктурируем image из объекта
+      const {image} = await generateChartImage(aspData, "radar");
 
       const summary = `
-📊 *ASP за ${month}*
+  📊 *ASP за ${month}*
+  
+  ⏱️ Минут на поле: *${aspData.minutes}*
+  🏃‍♂️ Ср. макс. скорость: *${aspData.avgMaxSpeed.toFixed(1)} км/ч*
+  ⚡ Ср. макс. ускорение: *${aspData.avgMaxAcc.toFixed(2)} м/с²*
+  🛑 Ср. макс. торможение: *${aspData.avgMaxDec.toFixed(2)} м/с²*
+  📏 Дист. Z4-Z5: *${aspData.z4z5Distance.toFixed(1)} м/мин*
+  🔥 Метаболическая сила: *${aspData.metabolicPower.toFixed(2)} Вт/кг*
+  `.trim();
 
-⏱️ Минут на поле: *${aspData.minutes}*
-🏃‍♂️ Ср. макс. скорость: *${aspData.avgMaxSpeed.toFixed(1)} км/ч*
-⚡ Ср. макс. ускорение: *${aspData.avgMaxAcc.toFixed(2)} м/с²*
-🛑 Ср. макс. торможение: *${aspData.avgMaxDec.toFixed(2)} м/с²*
-📏 Дист. Z4-Z5: *${aspData.z4z5Distance.toFixed(1)} м/мин*
-🔥 Метаболическая сила: *${aspData.metabolicPower.toFixed(2)} Вт/кг*
-`.trim();
+      const keyboard = new InlineKeyboard().text(
+        "🔙 Назад",
+        "stats_back_to_months"
+      );
+      const file = new InputFile(image);
 
-      // const keyboard = new InlineKeyboard().text("🔙 Назад", "stats_asp");
+      // ✅ удаляем "подождите..."
+      await ctx.api.deleteMessage(ctx.chat.id, waitMsg.message_id);
 
-      // await ctx.replyWithPhoto(new InputFile(imageBuffer), {
-      //   caption: summary,
-      //   parse_mode: "Markdown",
-      // });
-
-      const file = new InputFile(image); // ← оборачиваем Buffer
-
+      // ✅ отправляем результат
       await ctx.replyWithPhoto(file, {
         caption: summary,
+        reply_markup: keyboard,
         parse_mode: "Markdown",
       });
     } catch (err) {
@@ -87,7 +103,21 @@ module.exports = (bot) => {
 
   // Возврат на шаг назад
   bot.callbackQuery(/^stats_back$/, async (ctx) => {
-    await ctx.editMessageText("🔙 Назад. Вы можете снова вызвать /stats");
+    try {
+      await ctx.deleteMessage();
+    } catch (_) {}
+
+    await showStatsMenu(ctx);
+  });
+
+  bot.callbackQuery(/^stats_back_to_months$/, async (ctx) => {
+    try {
+      await ctx.deleteMessage();
+    } catch (_) {}
+
+    // эмулируем callback 'stats_asp'
+    ctx.update.callback_query.data = "stats_asp";
+    await bot.handleUpdate(ctx.update);
   });
 
   // Этап 1: Сравнение — выбор первого месяца

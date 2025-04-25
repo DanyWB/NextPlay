@@ -1,45 +1,55 @@
 ﻿function formatAspComparison(data1, data2, label1, label2) {
-  const compare = (a, b, unit = "") => {
-    const arrow = b > a ? "🔼" : b < a ? "🔽" : "➡️";
+  const compare = (a, b, index, unit = "") => {
+    // 🛑 Если это торможение (index === 3), то чем меньше значение — тем лучше
+    const isDeceleration = index === 3;
     const from = Number.isFinite(a) ? a.toFixed(2) : a;
     const to = Number.isFinite(b) ? b.toFixed(2) : b;
 
-    let tag = "b";
-    if (b > a) tag = "b"; // улучшение
-    else if (b < a) tag = "b"; // ухудшение
+    let arrow;
+    if (isDeceleration) {
+      arrow = b < a ? "🔼" : b > a ? "🔽" : "➡️";
+    } else {
+      arrow = b > a ? "🔼" : b < a ? "🔽" : "➡️";
+    }
 
-    return `<${tag}>${from}${unit} ${arrow} ${to}${unit}</${tag}>`;
+    return `<b>${from}${unit} ${arrow} ${to}${unit}</b>`;
   };
 
   return [
     `📊 <b>Сравнение ASP: ${label1} → ${label2}</b>`,
     ``,
-    `⏱️ Минут на поле:\n${compare(data1.minutes, data2.minutes)}`,
+    `⏱️ Минут на поле:\n${compare(data1.minutes, data2.minutes, 0)}`,
     `🏃‍♂️ Ср. макс. скорость:\n${compare(
       data1.avgMaxSpeed,
       data2.avgMaxSpeed,
+      1,
       " км/ч"
     )}`,
     `⚡ Ср. макс. ускорение:\n${compare(
       data1.avgMaxAcc,
       data2.avgMaxAcc,
+      2,
       " м/с²"
     )}`,
     `🛑 Ср. макс. торможение:\n${compare(
       data1.avgMaxDec,
       data2.avgMaxDec,
+      3,
       " м/с²"
     )}`,
     `📏 Дист. Z4-Z5:\n${compare(
       data1.z4z5Distance,
       data2.z4z5Distance,
+      4,
       " м/мин"
     )}`,
     `🔥 Метабол. сила:\n${compare(
       data1.metabolicPower,
       data2.metabolicPower,
+      5,
       " Вт/кг"
     )}`,
   ].join("\n\n");
 }
-module.exports = {formatAspComparison}; // ✅ экспорт через объект
+
+module.exports = {formatAspComparison};

@@ -71,13 +71,13 @@ bot.catch((err) => {
     },
   ]);
 
-  // const adminId = process.env.ADMIN_ID;
-  // if (adminId) {
-  //   await setAdmin(parseInt(adminId), "Admin");
-  // }
+  const adminId = process.env.ADMIN_ID;
+  if (adminId) {
+    await setAdmin(parseInt(adminId), "Admin");
+  }
   // 🔁 Синхронизируем данные + запускаем автообновление
   const intervalMin = parseInt(process.env.SYNC_INTERVAL_MINUTES || "10", 10);
-  // startSyncLoop(intervalMin * 60 * 1000);
+  startSyncLoop(intervalMin * 60 * 1000);
   //syncData();
   bot.start().then(() => console.log("🤖 Бот запущен и ожидает команды..."));
 })();
