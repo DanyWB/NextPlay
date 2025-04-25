@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const {syncData, startSyncLoop} = require("./connect");
 
-const {updateUserWeight} = require("./services/userService");
+const {updateUserWeight, setAdmin} = require("./services/userService");
 const {
   isWaitingForWeight,
   clearWaitingForWeight,
