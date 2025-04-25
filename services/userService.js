@@ -75,6 +75,20 @@ async function getUserByAthleteId(athleteId) {
   return await db("users").where({athlete_id: athleteId}).first();
 }
 
+async function declineUser(telegramId) {
+  try {
+    await bot.api.sendMessage(
+      telegramId,
+      "❌ Ваша заявка на верификацию была отклонена.\nВы можете попробовать снова позже или обратиться к администратору."
+    );
+  } catch (err) {
+    console.warn(
+      `⚠️ Не удалось отправить сообщение пользователю ${telegramId}:`,
+      err.message
+    );
+  }
+}
+
 module.exports = {
   createUserIfNotExists,
   getUnverifiedUsers,
@@ -87,4 +101,5 @@ module.exports = {
   getAllClubs,
   updateUserWeight,
   getUserByAthleteId,
+  declineUser,
 };
