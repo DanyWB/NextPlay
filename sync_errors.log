@@ -567,3 +567,6 @@
 [2025-04-17T15:28:59.539Z] athlete_session/1451996/more/ failed: Request failed with status code 502
 [2025-04-21T11:28:35.819Z] athlete_session/1456830/more/ failed: timeout of 10000ms exceeded
 [2025-04-21T11:59:03.448Z] athlete_session/1462937/more/ failed: timeout of 10000ms exceeded
+[2025-04-25T13:37:54.804Z] athlete_session/1337080/more/ failed: Request failed with status code 502
+[2025-04-25T18:24:35.770Z] athlete_session/1456827/more/ failed: Request failed with status code 502
+[2025-04-25T18:56:19.575Z] athlete_session/1451987/more/ failed: Request failed with status code 502

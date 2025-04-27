@@ -2,7 +2,14 @@ const {ChartJSNodeCanvas} = require("chartjs-node-canvas");
 
 const width = 600;
 const height = 400;
-const chartJSNodeCanvas = new ChartJSNodeCanvas({width, height});
+const chartJSNodeCanvas = new ChartJSNodeCanvas({
+  width,
+  height,
+  chartCallback: (ChartJS) => {
+    // Установим глобальный шрифт для всех графиков
+    ChartJS.defaults.font.family = "DejaVu Sans"; // или другой кириллический шрифт
+  },
+});
 
 async function generateChartImage(data1, data2 = null, type = "radar") {
   const labels = [
