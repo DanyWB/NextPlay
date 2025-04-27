@@ -28,6 +28,7 @@ const FILTER_PARAMS = {
   team_session: "start_timestamp_gte",
   player: "created_on_gte",
   athlete_threshold: "created_at_gte",
+  athlete_session: "start_timestamp_gte",
 };
 
 const DATE_FIELDS_PER_ENTITY = {
@@ -549,7 +550,7 @@ async function syncData() {
     await Promise.all(
       allData.athlete_session.map((session, i) =>
         limit(async () => {
-          await sleep(1500); // Пауза между запросами
+          await sleep(500); // Пауза между запросами
 
           const more = await fetchAthleteSessionMore(token, session.id);
 
@@ -581,33 +582,20 @@ async function syncData() {
       `🎯 Всего обработано сессий: ${processedCount}/${allData.athlete_session.length}`
     );
   }
+  if (allData.athlete_session?.length) {
+    const lastSessionTs = syncState["athlete_session"] || "1970-01-01T00:00:00";
 
-  // track.timestamp → athlete_session
-  const athleteSessions = allData.athlete_session || [];
-  const tracks = allData.track || [];
-  const trackMap = new Map();
-  tracks.forEach((t) => {
-    if (t.id && t.timestamp) trackMap.set(t.id, t.timestamp);
-  });
+    const latestSessionTs = allData.athlete_session.reduce((max, s) => {
+      if (s.start_timestamp && s.start_timestamp > max)
+        return s.start_timestamp;
+      return max;
+    }, lastSessionTs);
 
-  const lastSessionTs = syncState["athlete_session"] || "1970-01-01T00:00:00";
-  const filteredSessions = athleteSessions.filter((s) => {
-    const ts = trackMap.get(s.track);
-    return ts && ts > lastSessionTs;
-  });
-
-  allData.athlete_session = filteredSessions;
-
-  const latestSessionTs = filteredSessions.reduce((max, s) => {
-    const ts = trackMap.get(s.track);
-    return ts && ts > max ? ts : max;
-  }, lastSessionTs);
-
-  if (latestSessionTs) {
-    console.log(`📌 Последняя дата для athlete_session: ${latestSessionTs}`);
-    newState["athlete_session"] = latestSessionTs;
+    if (latestSessionTs) {
+      console.log(`📌 Последняя дата для athlete_session: ${latestSessionTs}`);
+      newState["athlete_session"] = latestSessionTs;
+    }
   }
-
   // athlete_threshold
   if (allData.athlete?.length) {
     const lastThresholdDate = syncState["athlete_threshold"] || null;
