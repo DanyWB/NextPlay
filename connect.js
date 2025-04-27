@@ -1,4 +1,5 @@
 require("dotenv").config();
+const pLimit = require("p-limit");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -289,7 +290,7 @@ async function fetchAll(entity, baseUrl, token, since = null) {
       await sleep(50);
       const res = await axios.get(url, {
         headers: {Authorization: `Token ${token}`},
-        timeout: 30000,
+        timeout: 100000,
       });
 
       const data = res.data.results || res.data;
@@ -541,13 +542,15 @@ async function syncData() {
   if (allData.athlete_session?.length) {
     logStep("📥 Загрузка athlete_session/more для каждой сессии...");
 
-    const pLimit = require("p-limit");
-    const limit = pLimit(3); // максимум 3 параллельных запроса
+    const limit = pLimit(2); // максимум 2 параллельных запроса
+
+    let processedCount = 0; // добавляем счётчик
 
     await Promise.all(
-      allData.athlete_session.map(async (session, i) => {
-        await limit(async () => {
-          await sleep(500); // сделаем еще паузу между запуском
+      allData.athlete_session.map((session, i) =>
+        limit(async () => {
+          await sleep(1500); // Пауза между запросами
+
           const more = await fetchAthleteSessionMore(token, session.id);
 
           if (more) {
@@ -556,9 +559,26 @@ async function syncData() {
               ...session,
               ...mapped,
             };
+
+            processedCount++;
+
+            if (
+              processedCount % 10 === 0 ||
+              processedCount === allData.athlete_session.length
+            ) {
+              console.log(
+                `✅ Обработано сессий: ${processedCount}/${allData.athlete_session.length}`
+              );
+            }
+          } else {
+            console.warn(`⚠️ Нет данных /more для session id=${session.id}`);
           }
-        });
-      })
+        })
+      )
+    );
+
+    console.log(
+      `🎯 Всего обработано сессий: ${processedCount}/${allData.athlete_session.length}`
     );
   }
 
@@ -591,13 +611,79 @@ async function syncData() {
   // athlete_threshold
   if (allData.athlete?.length) {
     const lastThresholdDate = syncState["athlete_threshold"] || null;
-    const thresholds = await fetchAthleteThresholds(
-      token,
-      allData.athlete,
-      lastThresholdDate
+
+    logStep("📥 Загрузка athlete_threshold для каждого спортсмена...");
+
+    const limit = pLimit(2); // максимум 2 запроса одновременно
+
+    const thresholds = [];
+
+    await Promise.all(
+      allData.athlete.map((athlete) =>
+        limit(async () => {
+          await sleep(1500); // пауза между запросами
+
+          try {
+            const res = await axios.get(
+              `${BASE_API}/athlete/${athlete.id}/thresholds/`,
+              {
+                headers: {Authorization: `Token ${token}`},
+                timeout: 10000,
+              }
+            );
+
+            const data = res.data;
+
+            const addThreshold = (metric, value, created_at) => {
+              if (!value || isNaN(value)) return;
+              if (
+                !lastThresholdDate ||
+                (created_at && created_at > lastThresholdDate)
+              ) {
+                thresholds.push({
+                  id: parseInt(
+                    `${athlete.id}${metric}`.replace(/\D/g, "").slice(0, 10)
+                  ),
+                  athlete: athlete.id,
+                  metric,
+                  value,
+                  created_at: created_at || null,
+                });
+              }
+            };
+
+            if (Array.isArray(data)) {
+              for (const t of data) {
+                addThreshold(t.metric, t.value, t.created_at);
+              }
+            } else if (typeof data === "object") {
+              const keys = [
+                "vo2_max",
+                "hr_max",
+                "hr_min",
+                "speed_max",
+                "v0",
+                "a0",
+              ];
+              const created_at = data.validity_start || null;
+              keys.forEach((key) => {
+                if (key in data) addThreshold(key, data[key], created_at);
+              });
+            }
+          } catch (err) {
+            console.warn(
+              `⚠️ Thresholds для athlete ${athlete.id} не загружены:`,
+              err.message
+            );
+            logToFile(`athlete_threshold/${athlete.id} failed: ${err.message}`);
+          }
+        })
+      )
     );
+
     allData.athlete_threshold = thresholds;
 
+    // Обновляем дату последнего threshold
     const latestThresholdDate = thresholds.reduce((max, t) => {
       const date = t.created_at || null;
       return date && date > max ? date : max;
