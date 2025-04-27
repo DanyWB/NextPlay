@@ -216,6 +216,10 @@ const TABLE_FIELDS = {
   athlete_threshold: ["id", "athlete", "metric", "value", "created_at"],
 };
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function readSyncState() {
   if (!fs.existsSync(SYNC_STATE_FILE)) {
     fs.writeFileSync(SYNC_STATE_FILE, JSON.stringify({}), "utf-8");
@@ -282,6 +286,7 @@ async function fetchAll(entity, baseUrl, token, since = null) {
   while (url) {
     try {
       console.log(`📥 Fetching ${entity} page ${page}...`);
+      await sleep(50);
       const res = await axios.get(url, {
         headers: {Authorization: `Token ${token}`},
         timeout: 30000,
@@ -356,6 +361,7 @@ async function fetchAthleteThresholds(token, athletes, since = null) {
   const all = [];
   for (const athlete of athletes) {
     try {
+      await sleep(300);
       const res = await axios.get(
         `${BASE_API}/athlete/${athlete.id}/thresholds/`,
         {
@@ -417,6 +423,7 @@ function parseTimeToMinutes(timeStr) {
 async function fetchAthleteSessionMore(token, sessionId) {
   const url = `${BASE_API}/athlete_session/${sessionId}/more/`;
   try {
+    await sleep(300);
     const res = await axios.get(url, {
       headers: {Authorization: `Token ${token}`},
       timeout: 10000,
@@ -536,6 +543,7 @@ async function syncData() {
 
     for (let i = 0; i < allData.athlete_session.length; i++) {
       const session = allData.athlete_session[i];
+      await sleep(300);
       const more = await fetchAthleteSessionMore(token, session.id);
 
       if (more) {
