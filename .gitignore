@@ -2,3 +2,5 @@
 output
 .env
 gpexe.db
+last_sync.json
+sync_errors.log
