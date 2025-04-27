@@ -75,7 +75,7 @@ async function getUserByAthleteId(athleteId) {
   return await db("users").where({athlete_id: athleteId}).first();
 }
 
-async function declineUser(telegramId) {
+async function declineUser(bot, telegramId) {
   try {
     await bot.api.sendMessage(
       telegramId,

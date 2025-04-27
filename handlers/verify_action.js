@@ -165,7 +165,7 @@ module.exports = (bot) => {
   bot.callbackQuery(/^verify_decline_(\d+)$/, async (ctx) => {
     const userId = parseInt(ctx.match[1]);
 
-    await declineUser(userId);
+    await declineUser(bot, userId);
     clearVerifyContext(ctx.from.id);
 
     await ctx.editMessageText(

@@ -60,11 +60,15 @@ module.exports = (bot) => {
       {text: "❌ Отклонить", callback_data: `verify_decline_${userId}`},
     ]);
 
+    function escapeMarkdownV2(text) {
+      return text.replace(/[_*[\]()~`>#+=|{}.!\\]/g, "\\$&"); // экранируем все важные символы
+    }
+
     await bot.api.sendMessage(
       adminId,
-      `📥 *Запрос на верификацию*\n👤 Telegram ID: \`${userId}\`\n🔹 Username: @${
+      `📥 *Запрос на верификацию*\n👤 Telegram ID: \`${userId}\`\n🔹 Username: @${escapeMarkdownV2(
         user.username || `user_${userId}`
-      }\n\nВыберите клуб, к которому относится пользователь:`,
+      )}\n\nВыберите клуб, к которому относится пользователь:`,
       {
         parse_mode: "Markdown",
         reply_markup: {inline_keyboard: buttons},

@@ -541,19 +541,25 @@ async function syncData() {
   if (allData.athlete_session?.length) {
     logStep("📥 Загрузка athlete_session/more для каждой сессии...");
 
-    for (let i = 0; i < allData.athlete_session.length; i++) {
-      const session = allData.athlete_session[i];
-      await sleep(300);
-      const more = await fetchAthleteSessionMore(token, session.id);
+    const pLimit = require("p-limit");
+    const limit = pLimit(3); // максимум 3 параллельных запроса
 
-      if (more) {
-        const mapped = mapMoreFieldsToSession(more);
-        allData.athlete_session[i] = {
-          ...session,
-          ...mapped,
-        };
-      }
-    }
+    await Promise.all(
+      allData.athlete_session.map(async (session, i) => {
+        await limit(async () => {
+          await sleep(500); // сделаем еще паузу между запуском
+          const more = await fetchAthleteSessionMore(token, session.id);
+
+          if (more) {
+            const mapped = mapMoreFieldsToSession(more);
+            allData.athlete_session[i] = {
+              ...session,
+              ...mapped,
+            };
+          }
+        });
+      })
+    );
   }
 
   // track.timestamp → athlete_session
