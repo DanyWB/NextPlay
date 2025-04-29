@@ -70,6 +70,10 @@ bot.catch((err) => {
       command: "verify",
       description: "✅ Верифицировать пользователя (только для админа)",
     },
+    {
+      command: "unlink",
+      description: "❌ Отвязать пользователя (только для админа)",
+    },
   ]);
 
   const adminId = process.env.ADMIN_ID;

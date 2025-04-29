@@ -54,6 +54,12 @@ async function verifyUser(id, athlete_id) {
   console.log(`✅ Пользователь ${id} верифицирован с athlete_id ${athlete_id}`);
 }
 
+async function unlinkUserFromAthlete(userId) {
+  await db("users").where({id: userId}).update({
+    athlete_id: null,
+  });
+}
+
 async function isAdmin(id) {
   const user = await db("users").where({id}).first();
   return user?.is_admin == true;
@@ -89,6 +95,10 @@ async function declineUser(bot, telegramId) {
   }
 }
 
+async function getLinkedUsers() {
+  return await db("users").select("id", "username").whereNotNull("athlete_id");
+}
+
 module.exports = {
   createUserIfNotExists,
   getUnverifiedUsers,
@@ -102,4 +112,6 @@ module.exports = {
   updateUserWeight,
   getUserByAthleteId,
   declineUser,
+  unlinkUserFromAthlete,
+  getLinkedUsers,
 };
