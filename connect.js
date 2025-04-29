@@ -539,6 +539,22 @@ async function syncData() {
     }
   }
 
+  if (allData.athlete_session?.length) {
+    const lastSyncDate = syncState["athlete_session"] || "1970-01-01T00:00:00";
+    const before = allData.athlete_session.length;
+
+    allData.athlete_session = allData.athlete_session.filter((session) => {
+      if (!session.datetime_intervals) return false;
+      const startDatetime = session.datetime_intervals.split("|")[0];
+      return startDatetime > lastSyncDate;
+    });
+
+    const after = allData.athlete_session.length;
+    console.log(
+      `✅ Фильтрация athlete_session: осталось ${after} из ${before}`
+    );
+  }
+
   // 2. Загрузка данных /more/ для athlete_session
   if (allData.athlete_session?.length) {
     logStep("📥 Загрузка athlete_session/more для каждой сессии...");
@@ -582,18 +598,26 @@ async function syncData() {
       `🎯 Всего обработано сессий: ${processedCount}/${allData.athlete_session.length}`
     );
   }
+
   if (allData.athlete_session?.length) {
     const lastSessionTs = syncState["athlete_session"] || "1970-01-01T00:00:00";
 
-    const latestSessionTs = allData.athlete_session.reduce((max, s) => {
-      if (s.start_timestamp && s.start_timestamp > max)
-        return s.start_timestamp;
-      return max;
-    }, lastSessionTs);
+    let latestSessionTs = lastSessionTs;
 
-    if (latestSessionTs) {
+    for (const session of allData.athlete_session) {
+      if (session.datetime_intervals) {
+        const startDatetime = session.datetime_intervals.split("|")[0];
+        if (startDatetime > latestSessionTs) {
+          latestSessionTs = startDatetime;
+        }
+      }
+    }
+
+    if (latestSessionTs !== lastSessionTs) {
       console.log(`📌 Последняя дата для athlete_session: ${latestSessionTs}`);
       newState["athlete_session"] = latestSessionTs;
+    } else {
+      console.log("⚠️ Нет новых athlete_session для обновления даты.");
     }
   }
   // athlete_threshold

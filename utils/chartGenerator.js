@@ -1,7 +1,9 @@
 const {ChartJSNodeCanvas} = require("chartjs-node-canvas");
+const axios = require("axios");
+const {InputFile} = require("grammy");
 
-const width = 600;
-const height = 400;
+let width = 600;
+let height = 400;
 const chartJSNodeCanvas = new ChartJSNodeCanvas({
   width,
   height,
@@ -241,5 +243,120 @@ function getComparisonText(data1, data2, labels) {
     })
     .join("\n");
 }
+width = 330;
+height = 270;
+const chartJSNodeCanvasMPP = new ChartJSNodeCanvas({
+  width,
+  height,
+  chartCallback: (ChartJS) => {
+    ChartJS.defaults.font.family = "DejaVu Sans";
+  },
+});
+async function generateQuickGaugeImage(data1, data2 = null) {
+  const min = 0;
+  const max = 10;
 
-module.exports = {generateChartImage};
+  const value1 = Math.max(min, Math.min(data1.average_p, max));
+  const value2 = data2 ? Math.max(min, Math.min(data2.average_p, max)) : null;
+
+  const imageBuffer = await chartJSNodeCanvasMPP.renderToBuffer({
+    type: "doughnut", // не используется — всё рисуем вручную
+    data: {datasets: []},
+    options: {
+      responsive: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {enabled: false},
+      },
+      events: [],
+    },
+    plugins: [
+      {
+        id: "manual_gauge_draw",
+        beforeDraw: (chart) => {
+          const {ctx} = chart;
+
+          // Очистка
+          ctx.save();
+          ctx.fillStyle = "white";
+          ctx.fillRect(0, 0, width, height);
+          ctx.restore();
+
+          const centerX = width / 2;
+          const centerY = height * 0.9;
+          const radius = width * 0.4;
+          const thickness = 50;
+
+          const toRadians = (val) => (Math.PI * val) / 180;
+
+          // === 1. Серый фон ===
+          ctx.beginPath();
+          ctx.lineWidth = thickness;
+          ctx.strokeStyle = "#e0e0e0";
+          ctx.arc(centerX, centerY, radius, Math.PI, 0, false);
+          ctx.stroke();
+
+          // === 2. Оранжевый (старое значение) ===
+          if (value2 !== null) {
+            const angle2 = (value2 / max) * Math.PI;
+            ctx.beginPath();
+            ctx.lineWidth = thickness - 3;
+            ctx.strokeStyle = "rgba(255,167,38,0.5)";
+            ctx.arc(centerX, centerY, radius, Math.PI, Math.PI + angle2, false);
+            ctx.stroke();
+          }
+
+          // === 3. Синий (новое значение) ===
+          const angle1 = (value1 / max) * Math.PI;
+          ctx.beginPath();
+          ctx.lineWidth = thickness - 3;
+          ctx.strokeStyle = "rgba(66,133,244,0.6)";
+          ctx.arc(centerX, centerY, radius, Math.PI, Math.PI + angle1, false);
+          ctx.stroke();
+
+          // === 4. Подписи ===
+          ctx.textAlign = "center";
+
+          ctx.font = "14px 'DejaVu Sans'";
+          ctx.fillStyle = "#888";
+          ctx.fillText("avg MP", centerX, height * 0.7);
+
+          ctx.font = "20px 'DejaVu Sans'";
+          ctx.fillStyle = "#444";
+          if (value2 !== null) {
+            ctx.fillText(
+              `${value2.toFixed(2)} → ${value1.toFixed(2)} W/kg`,
+              centerX,
+              height * 0.8
+            );
+          } else {
+            ctx.fillText(`${value1.toFixed(2)} W/kg`, centerX, height * 0.8);
+          }
+
+          ctx.font = "13px 'DejaVu Sans'";
+          ctx.fillStyle = "#999";
+          ctx.textAlign = "left";
+          ctx.fillText(min.toString(), width * 0.1, height * 0.96);
+          ctx.textAlign = "right";
+          ctx.fillText(max.toString(), width * 0.9, height * 0.96);
+        },
+      },
+    ],
+  });
+
+  const comparisonText =
+    data2 !== null
+      ? `${value1 - value2 > 0 ? "+" : ""}${(value1 - value2).toFixed(2)} W/kg`
+      : null;
+
+  return {
+    image: new InputFile(imageBuffer, "mpp-gauge.png"),
+    comparisonText,
+  };
+}
+
+module.exports = {
+  generateChartImage,
+
+  generateQuickGaugeImage,
+};

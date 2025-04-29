@@ -91,4 +91,27 @@ async function getAspData(athleteId, month) {
     metabolicPower: metabolicPower || 0,
   };
 }
-module.exports = {getAvailableMonths, getAspData};
+
+async function getMppData(athleteId, month) {
+  const result = await knex("athlete_session")
+    .join("track", "athlete_session.track", "=", "track.id")
+    .where("athlete_session.athlete", athleteId)
+    .andWhereRaw("strftime('%Y-%m', track.timestamp) = ?", [month])
+    .select(
+      knex.raw("AVG(average_p) AS average_p"),
+      knex.raw("SUM(total_energy) AS total_energy"),
+      knex.raw("SUM(anaerobic_energy) AS anaerobic_energy"),
+      knex.raw("SUM(equivalent_distance) AS equivalent_distance")
+    )
+    .first();
+
+  if (!result || !result.average_p) return null;
+
+  return {
+    average_p: parseFloat(result.average_p.toFixed(2)),
+    total_energy: Math.round(result.total_energy),
+    anaerobic_energy: Math.round(result.anaerobic_energy),
+    equivalent_distance: Math.round(result.equivalent_distance),
+  };
+}
+module.exports = {getAvailableMonths, getAspData, getMppData};
