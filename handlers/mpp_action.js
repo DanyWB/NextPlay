@@ -26,9 +26,21 @@ module.exports = (bot) => {
     }
     keyboard.text("🔙 Назад", "stats_back");
 
-    await ctx.editMessageText("📅 Выберите месяц для MPP:", {
-      reply_markup: keyboard,
-    });
+    if (ctx.callbackQuery?.message?.message_id) {
+      try {
+        await ctx.editMessageText("📅 Выберите месяц для MPP:", {
+          reply_markup: keyboard,
+        });
+      } catch (e) {
+        await ctx.reply("📅 Выберите месяц для MPP:", {
+          reply_markup: keyboard,
+        });
+      }
+    } else {
+      await ctx.reply("📅 Выберите месяц для MPP:", {
+        reply_markup: keyboard,
+      });
+    }
   });
   bot.callbackQuery(/^stats_back_to_months_mpp$/, async (ctx) => {
     try {
@@ -41,6 +53,11 @@ module.exports = (bot) => {
   });
   // Вывод одного MPP профиля
   bot.callbackQuery(/^mpp_month_(.+)$/, async (ctx) => {
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      console.error("Не удалось удалить сообщение:", e.description);
+    }
     const month = ctx.match[1];
     const user = await getUser(ctx.from.id);
     if (!user?.athlete_id) return ctx.reply("❌ Вы не верифицированы.");
@@ -64,6 +81,11 @@ module.exports = (bot) => {
 
   // Сравнение двух месяцев — шаг 1
   bot.callbackQuery("stats_mpp_compare", async (ctx) => {
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      console.error("Не удалось удалить сообщение:", e.description);
+    }
     const user = await getUser(ctx.from.id);
     if (!user?.athlete_id)
       return ctx.answerCallbackQuery({
@@ -78,9 +100,24 @@ module.exports = (bot) => {
     }
     keyboard.text("🔙 Назад", "stats_back");
 
-    await ctx.editMessageText("📅 Выберите первый месяц для сравнения MPP:", {
-      reply_markup: keyboard,
-    });
+    if (ctx.callbackQuery?.message?.message_id) {
+      try {
+        await ctx.editMessageText(
+          "📅 Выберите первый месяц для сравнения MPP:",
+          {
+            reply_markup: keyboard,
+          }
+        );
+      } catch (e) {
+        await ctx.reply("📅 Выберите первый месяц для сравнения MPP:", {
+          reply_markup: keyboard,
+        });
+      }
+    } else {
+      await ctx.reply("📅 Выберите первый месяц для сравнения MPP:", {
+        reply_markup: keyboard,
+      });
+    }
   });
 
   // Сравнение — выбор второго месяца
@@ -103,6 +140,11 @@ module.exports = (bot) => {
 
   // Сравнение — финальный график
   bot.callbackQuery(/^mpp_compare_month2_(.+)$/, async (ctx) => {
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      console.error("Не удалось удалить сообщение:", e.description);
+    }
     const month1 = ctx.session.mppCompare?.month1;
     const month2 = ctx.match[1];
     const user = await getUser(ctx.from.id);
@@ -123,6 +165,7 @@ module.exports = (bot) => {
     await ctx.replyWithPhoto(image, {
       caption,
       parse_mode: "HTML",
+      reply_markup: new InlineKeyboard().text("🔙 Назад", "stats_mpp_compare"),
     });
   });
 };
