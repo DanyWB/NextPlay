@@ -1,6 +1,5 @@
 const db = require("../services/db");
 const {isVerified, getUser} = require("../services/userService");
-const {setWaitingForWeight} = require("../services/weightStateService.js");
 
 module.exports = (bot) => {
   bot.command("verify_me", async (ctx) => {
@@ -12,16 +11,6 @@ module.exports = (bot) => {
 
     const verified = await isVerified(userId);
     if (verified) return ctx.reply("✅ Вы уже верифицированы.");
-
-    if (!user.weight) {
-      setWaitingForWeight(userId);
-      return ctx.reply(
-        "⚖️ Пожалуйста, введите ваш вес в килограммах (например, `72.5`):",
-        {
-          parse_mode: "Markdown",
-        }
-      );
-    }
 
     // ⛔ Ограничение на повторный запрос — 2 часа
     if (user.last_verification_request) {

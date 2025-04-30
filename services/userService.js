@@ -74,9 +74,6 @@ async function getUser(id) {
   return await db("users").where({id}).first();
 }
 
-async function updateUserWeight(userId, weight) {
-  return db("users").where("id", userId).update({weight});
-}
 async function getUserByAthleteId(athleteId) {
   return await db("users").where({athlete_id: athleteId}).first();
 }
@@ -109,7 +106,6 @@ module.exports = {
   isVerified,
   getUser,
   getAllClubs,
-  updateUserWeight,
   getUserByAthleteId,
   declineUser,
   unlinkUserFromAthlete,
