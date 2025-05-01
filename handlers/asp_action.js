@@ -77,7 +77,6 @@ module.exports = (bot) => {
   ⚡ Ср. макс. ускорение: *${aspData.avgMaxAcc.toFixed(2)} м/с²*
   🛑 Ср. макс. торможение: *${aspData.avgMaxDec.toFixed(2)} м/с²*
   📏 Дист. Z4-Z5: *${aspData.z4z5Distance.toFixed(1)} м/мин*
-  🔥 Метаболическая сила: *${aspData.metabolicPower.toFixed(2)} Вт/кг*
   `.trim();
 
       const keyboard = new InlineKeyboard().text(

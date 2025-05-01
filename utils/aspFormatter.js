@@ -37,18 +37,6 @@
       3,
       " м/с²"
     )}`,
-    `📏 Дист. Z4-Z5:\n${compare(
-      data1.z4z5Distance,
-      data2.z4z5Distance,
-      4,
-      " м/мин"
-    )}`,
-    `🔥 Метабол. сила:\n${compare(
-      data1.metabolicPower,
-      data2.metabolicPower,
-      5,
-      " Вт/кг"
-    )}`,
   ].join("\n\n");
 }
 
