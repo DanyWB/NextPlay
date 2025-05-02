@@ -212,6 +212,119 @@ function getChartConfig(
     ],
   };
 }
+function getChartConfigMatch(
+  type,
+  labels,
+  data1,
+  data2,
+  raw1,
+  raw2,
+  title = ""
+) {
+  return {
+    type,
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Матч 1",
+          data: data1,
+          backgroundColor: "rgba(66, 133, 244, 0.3)",
+          borderColor: "#4285F4",
+          borderWidth: 1,
+          pointBackgroundColor: "#4285F4",
+        },
+        ...(data2
+          ? [
+              {
+                label: "Матч 2",
+                data: data2,
+                backgroundColor: "rgba(255, 167, 38, 0.3)",
+                borderColor: "#FFA726",
+                borderWidth: 2,
+                pointBackgroundColor: "#FFA726",
+              },
+            ]
+          : []),
+      ],
+    },
+    options: {
+      responsive: false,
+      layout: {
+        padding: 15,
+      },
+      plugins: {
+        legend: {
+          display: !!data2,
+          labels: {
+            color: "#ccc",
+            font: {size: 16, family: "DejaVu Sans"},
+          },
+        },
+        title: {
+          display: true,
+          text: title,
+          color: "#fff",
+          font: {
+            size: 26,
+            weight: "bold",
+            family: "DejaVu Sans",
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: function (ctx) {
+              const raw = ctx.datasetIndex === 0 ? raw1 : raw2;
+              return `${labels[ctx.dataIndex]}: ${raw?.[ctx.dataIndex]}`;
+            },
+          },
+        },
+      },
+      scales: {
+        r: {
+          min: 0,
+          max: 100,
+          angleLines: {color: "#444"},
+          grid: {color: "#555"},
+          pointLabels: {
+            color: "#ccc",
+            font: {size: 20, family: "DejaVu Sans"},
+          },
+          ticks: {display: false},
+        },
+      },
+    },
+    plugins: [
+      {
+        id: "value_labels",
+        beforeDraw: (chart) => {
+          const {ctx} = chart;
+          ctx.save();
+          ctx.font = "18px 'DejaVu Sans'";
+          ctx.fillStyle = "#ffffff"; // яркий белый текст
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+
+          const datasets = chart.data.datasets;
+          datasets.forEach((dataset, dsIndex) => {
+            const meta = chart.getDatasetMeta(dsIndex);
+            const raw = dsIndex === 0 ? raw1 : raw2;
+
+            meta.data.forEach((point, i) => {
+              const {x, y} = point.tooltipPosition();
+              const value = raw?.[i];
+              if (value !== undefined) {
+                ctx.fillText(value.toFixed(1), x, y - 6);
+              }
+            });
+          });
+
+          ctx.restore();
+        },
+      },
+    ],
+  };
+}
 function getComparisonText(data1, data2, labels) {
   const raw1 = [
     data1.minutes,
@@ -398,8 +511,94 @@ async function generateQuickGaugeImage(data1, data2 = null) {
   };
 }
 
+const chartJSNodeCanvasMatch = new ChartJSNodeCanvas({
+  width: 720,
+  height: 720,
+  backgroundColour: "black",
+});
+
+async function generateMatchChartImage(data1, data2 = null) {
+  const labels = [
+    "Минуты",
+    "Дистанция",
+    "Макс. скорость",
+    "Ускорения",
+    "Торможения",
+    "Z4-Z5 (м/мин)",
+    "Мощность",
+  ];
+
+  const rawValues1 = [
+    data1.minutes,
+    data1.totalDistance,
+    data1.maxSpeed,
+    data1.acc,
+    data1.dec,
+    data1.z4z5,
+    data1.metabolicPower,
+  ];
+
+  const rawValues2 = data2
+    ? [
+        data2.minutes,
+        data2.totalDistance,
+        data2.maxSpeed,
+        data2.acc,
+        data2.dec,
+        data2.z4z5,
+        data2.metabolicPower,
+      ]
+    : null;
+
+  const parameterRanges = [
+    {min: 0, max: 130}, // Минуты
+    {min: 1000, max: 15000}, // Дистанция
+    {min: 10, max: 40}, // Макс. скорость
+    {min: 0, max: 50}, // Ускорения
+    {min: 0, max: 50}, // Торможения
+    {min: 0, max: 15}, // Z4-Z5
+    {min: 0, max: 10}, // Мощность
+  ];
+
+  const normalize = (data) => {
+    const raw = [
+      data.minutes,
+      data.totalDistance,
+      data.maxSpeed,
+      data.acc,
+      data.dec,
+      data.z4z5,
+      data.metabolicPower,
+    ];
+
+    return raw.map((value, i) => {
+      const {min, max} = parameterRanges[i];
+      const clamped = Math.max(min, Math.min(value, max));
+      return ((clamped - min) / (max - min)) * 100;
+    });
+  };
+
+  const normalized1 = normalize(data1);
+  const normalized2 = data2 ? normalize(data2) : null;
+
+  const title = data2 ? "Сравнение матчей" : "Матч";
+
+  const config = getChartConfigMatch(
+    "radar",
+    labels,
+    normalized1,
+    normalized2,
+    rawValues1,
+    rawValues2,
+    title
+  );
+
+  const buffer = await chartJSNodeCanvasMatch.renderToBuffer(config);
+  return {image: new InputFile(buffer, "match-chart.png")};
+}
+
 module.exports = {
   generateChartImage,
-
+  generateMatchChartImage,
   generateQuickGaugeImage,
 };

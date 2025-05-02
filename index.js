@@ -45,6 +45,7 @@ bot.catch((err) => {
     {command: "verify_me", description: "📥 Отправить запрос на верификацию"},
     {command: "me_status", description: "👤 Показать мой статус"},
     {command: "stats", description: "📊 Моя статистика"},
+    {command: "stats_matches", description: "📊 Моя Матчи"},
     {
       command: "verify",
       description: "✅ Верифицировать пользователя (только для админа)",
@@ -61,7 +62,7 @@ bot.catch((err) => {
   }
   // 🔁 Синхронизируем данные + запускаем автообновление
   const intervalMin = parseInt(process.env.SYNC_INTERVAL_MINUTES || "10", 10);
-  startSyncLoop(intervalMin * 60 * 1000);
+  //startSyncLoop(intervalMin * 60 * 1000);
   //syncData();
   bot.start().then(() => console.log("🤖 Бот запущен и ожидает команды..."));
 })();
