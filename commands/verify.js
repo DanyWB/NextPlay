@@ -16,12 +16,23 @@ module.exports = (bot) => {
       return ctx.reply("🎉 Нет пользователей, ожидающих верификацию.");
     }
 
-    const buttons = users.map((u) => [
-      {
-        text: `@${u.username} (${u.id})`,
-        callback_data: `verify_select_user_${u.id}`,
-      },
-    ]);
+    const buttons = users.map((u) => {
+      let fullName = "Имя не указано";
+
+      try {
+        const meta = u.meta ? JSON.parse(u.meta) : {};
+        if (meta.full_name) fullName = meta.full_name;
+      } catch (err) {
+        console.error("Ошибка парсинга meta:", err);
+      }
+
+      return [
+        {
+          text: `${fullName} (@${u.username || "без username"}, ${u.id})`,
+          callback_data: `verify_select_user_${u.id}`,
+        },
+      ];
+    });
 
     await ctx.reply("👤 Выберите пользователя для верификации:", {
       reply_markup: {inline_keyboard: buttons},

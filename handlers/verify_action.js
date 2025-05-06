@@ -16,6 +16,7 @@ const {
   clearVerifyContext,
 } = require("../services/stateService");
 const {logAdminAction} = require("../services/logService");
+const db = require("../services/db");
 
 module.exports = (bot) => {
   console.log("✅ verify_action.js инициализация началась...");
@@ -150,6 +151,16 @@ module.exports = (bot) => {
 
     const athlete = await getAthleteById(athleteId);
 
+    // отправка сообщения пользователю
+    try {
+      await bot.api.sendMessage(
+        userId,
+        "✅ Вы успешно прошли верификацию! Теперь вам доступны все функции бота."
+      );
+    } catch (error) {
+      console.error("❌ Не удалось уведомить пользователя:", error);
+    }
+
     await ctx.editMessageText(
       `✅ Пользователь \`${userId}\` успешно привязан к атлету *${athlete.first_name} ${athlete.last_name}* (ID: ${athleteId})`,
       {parse_mode: "Markdown"}
@@ -167,6 +178,13 @@ module.exports = (bot) => {
 
     await declineUser(bot, userId);
     clearVerifyContext(ctx.from.id);
+
+    // Очищаем поле meta
+    await db("users")
+      .where({id: userId})
+      .update({
+        meta: JSON.stringify({}),
+      });
 
     await ctx.editMessageText(
       `🚫 Запрос пользователя \`${userId}\` отклонён.`,
