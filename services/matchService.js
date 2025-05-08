@@ -43,8 +43,13 @@ async function getMatchesByMonth(athleteId, monthStr) {
   const startStr = start.toISOString().split(".")[0];
   const endStr = end.toISOString().split(".")[0];
 
-  return await db("team_session")
-    .select("team_session.id", "team_session.name")
+  const matches = await db("team_session")
+    .select(
+      "team_session.id",
+      "team_session.name", // [OFFICIAL MATCH] ...
+      "team_session.notes", // пользовательское название
+      "team_session.start_timestamp"
+    )
     .join("athlete_session", "team_session.id", "athlete_session.teamsession")
     .where("athlete_session.athlete", athleteId)
     .whereNotNull("team_session.category")
@@ -53,6 +58,28 @@ async function getMatchesByMonth(athleteId, monthStr) {
     .andWhere("team_session.start_timestamp", "<", endStr)
     .groupBy("team_session.id")
     .orderBy("team_session.start_timestamp", "desc");
+
+  return matches.map((match) => {
+    // Извлекаем только [CATEGORY] и дату из name
+    const categoryMatch = match.name.match(/^\[(.*?)\]/);
+    let category = categoryMatch ? categoryMatch[1] : "";
+    category = category.replace(/match/i, "").trim(); // убираем "match" (без учёта регистра)
+    if (category) category = `[${category.toUpperCase()}]`;
+    else category = "[UNKNOWN]"; // если не удалось извлечь категорию
+
+    const date = new Date(match.start_timestamp);
+    const dateStr = date.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    }); // например: 3 May 2025
+
+    const notes = match.notes?.trim();
+
+    return {
+      id: match.id,
+      name: `${category} ${dateStr}${notes ? ` (${notes})  ` : ""}`,
+    };
+  });
 }
 
 async function getMatchStats(athleteId, teamSessionId) {
@@ -60,6 +87,12 @@ async function getMatchStats(athleteId, teamSessionId) {
     .where("athlete", athleteId)
     .andWhere("teamsession", teamSessionId)
     .first();
+
+  const teamSession = await db("team_session")
+    .where("id", teamSessionId)
+    .first();
+
+  const sessionNotes = teamSession?.notes || null;
 
   if (!session) return null;
 
@@ -76,6 +109,7 @@ async function getMatchStats(athleteId, teamSessionId) {
     dec: session.dec_events_count,
     z4z5: z4z5,
     metabolicPower: session.average_p,
+    notes: sessionNotes || "Профиль матча",
   };
 }
 

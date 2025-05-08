@@ -581,7 +581,11 @@ async function generateMatchChartImage(data1, data2 = null) {
   const normalized1 = normalize(data1);
   const normalized2 = data2 ? normalize(data2) : null;
 
-  const title = data2 ? "Сравнение матчей" : "Матч";
+  let title = data1.notes;
+
+  if (data2) {
+    title += " / " + data2.notes;
+  }
 
   const config = getChartConfigMatch(
     "radar",

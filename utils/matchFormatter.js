@@ -1,5 +1,5 @@
 ﻿function formatMatchStats(data) {
-  return `📊 <b>Профиль матча</b>
+  return `📊 <b>${data.notes}</b>
 
 ⏱️ Минут на поле: <b>${data.minutes.toFixed(0)}</b>
 📏 Дистанция: <b>${data.totalDistance.toFixed(0)} м</b>
@@ -17,7 +17,7 @@ function formatMatchComparison(data1, data2) {
     return `${sign} ${Math.abs(diff).toFixed(1)}${unit}`;
   }
 
-  return `📊 <b>Сравнение матчей</b>
+  return `📊 <b>${data1.notes} / ${data2.notes}</b>
 
 ⏱️ Минут: <b>${data1.minutes.toFixed(0)}</b> → <b>${data2.minutes.toFixed(
     0
