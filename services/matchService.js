@@ -110,6 +110,8 @@ async function getMatchStats(athleteId, teamSessionId) {
     z4z5: z4z5,
     metabolicPower: session.average_p,
     notes: sessionNotes || "Профиль матча",
+    z4: session.distance_speed_zone_4,
+    z5: session.distance_speed_zone_5,
   };
 }
 

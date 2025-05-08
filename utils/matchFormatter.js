@@ -6,7 +6,9 @@
 🚀 Макс. скорость: <b>${data.maxSpeed.toFixed(1)} км/ч</b>
 ⚡ Ускорения: <b>${data.acc}</b>
 🛑 Торможения: <b>${data.dec}</b>
-🔥 Z4-Z5: <b>${data.z4z5.toFixed(1)} м/мин</b>
+🔥 Z4-distance: <b>${data.z4.toFixed(1)} м</b>
+🔥 Z5-distance: <b>${data.z5.toFixed(1)} м</b>
+🔥 Профиль Z4-Z5: <b>${data.z4z5.toFixed(1)} м/мин</b>
 💥 Мощность: <b>${data.metabolicPower.toFixed(2)} Вт/кг</b>`;
 }
 
@@ -42,6 +44,12 @@ function formatMatchComparison(data1, data2) {
     data1.dec,
     data2.dec
   )}
+🔥 Z4: <b>${data1.z4.toFixed(1)}</b> → <b>${data2.z4.toFixed(
+    1
+  )}</b> ${diffLabel(data1.z4, data2.z4)}
+  🔥 Z5: <b>${data1.z5.toFixed(1)}</b> → <b>${data2.z5.toFixed(
+    1
+  )}</b> ${diffLabel(data1.z5, data2.z5)}
 🔥 Z4-Z5: <b>${data1.z4z5.toFixed(1)}</b> → <b>${data2.z4z5.toFixed(
     1
   )}</b> ${diffLabel(data1.z4z5, data2.z4z5)}
