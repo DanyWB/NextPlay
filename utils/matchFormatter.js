@@ -1,65 +1,92 @@
-﻿function formatMatchStats(data) {
-  return `📊 <b>${data.notes}</b>
-
-⏱️ Минут на поле: <b>${data.minutes.toFixed(0)}</b>
-📏 Дистанция: <b>${data.totalDistance.toFixed(0)} м</b>
-🚀 Макс. скорость: <b>${data.maxSpeed.toFixed(1)} км/ч</b>
-⚡ Ускорения: <b>${data.acc}</b>
-🛑 Торможения: <b>${data.dec}</b>
-🔥 Z4-distance: <b>${data.z4.toFixed(1)} м</b>
-🔥 Z5-distance: <b>${data.z5.toFixed(1)} м</b>
-🔥 Профиль Z4-Z5: <b>${data.z4z5.toFixed(1)} м/мин</b>
-💥 Мощность: <b>${data.metabolicPower.toFixed(2)} Вт/кг</b>`;
+﻿const {t} = require("../services/langService");
+function formatMatchStats(data, lang = "ru") {
+  return [
+    t(lang, "match_stats.title", {title: data.notes}),
+    t(lang, "match_stats.minutes", {value: data.minutes.toFixed(0)}),
+    t(lang, "match_stats.distance", {value: data.totalDistance.toFixed(0)}),
+    t(lang, "match_stats.speed", {value: data.maxSpeed.toFixed(1)}),
+    t(lang, "match_stats.acc", {value: data.acc}),
+    t(lang, "match_stats.dec", {value: data.dec}),
+    t(lang, "match_stats.z4", {value: data.z4.toFixed(1)}),
+    t(lang, "match_stats.z5", {value: data.z5.toFixed(1)}),
+    t(lang, "match_stats.z4z5", {value: data.z4z5.toFixed(1)}),
+    t(lang, "match_stats.mp", {value: data.metabolicPower.toFixed(2)}),
+  ].join("\n");
 }
 
-function formatMatchComparison(data1, data2) {
-  function diffLabel(a, b, unit = "") {
+function formatMatchComparison(data1, data2, lang = "ru") {
+  const delta = (a, b, unit = "") => {
     const diff = b - a;
     const sign = diff > 0 ? "🔼" : diff < 0 ? "🔽" : "";
     return `${sign} ${Math.abs(diff).toFixed(1)}${unit}`;
-  }
+  };
 
-  return `📊 <b>${data1.notes} / ${data2.notes}</b>
+  const items = [
+    {
+      key: "minutes",
+      a: data1.minutes.toFixed(0),
+      b: data2.minutes.toFixed(0),
+    },
+    {
+      key: "distance",
+      a: data1.totalDistance.toFixed(0),
+      b: data2.totalDistance.toFixed(0),
+    },
+    {
+      key: "speed",
+      a: data1.maxSpeed.toFixed(1),
+      b: data2.maxSpeed.toFixed(1),
+    },
+    {
+      key: "acc",
+      a: data1.acc,
+      b: data2.acc,
+    },
+    {
+      key: "dec",
+      a: data1.dec,
+      b: data2.dec,
+    },
+    {
+      key: "z4",
+      a: data1.z4.toFixed(1),
+      b: data2.z4.toFixed(1),
+    },
+    {
+      key: "z5",
+      a: data1.z5.toFixed(1),
+      b: data2.z5.toFixed(1),
+    },
+    {
+      key: "z4z5",
+      a: data1.z4z5.toFixed(1),
+      b: data2.z4z5.toFixed(1),
+    },
+    {
+      key: "mp",
+      a: data1.metabolicPower.toFixed(2),
+      b: data2.metabolicPower.toFixed(2),
+      unit: " Вт/кг",
+    },
+  ];
 
-⏱️ Минут: <b>${data1.minutes.toFixed(0)}</b> → <b>${data2.minutes.toFixed(
-    0
-  )}</b> ${diffLabel(data1.minutes, data2.minutes)}
-📏 Дистанция: <b>${data1.totalDistance.toFixed(
-    0
-  )}</b> → <b>${data2.totalDistance.toFixed(0)}</b> ${diffLabel(
-    data1.totalDistance,
-    data2.totalDistance
-  )}
-🚀 Макс. скорость: <b>${data1.maxSpeed.toFixed(
-    1
-  )}</b> → <b>${data2.maxSpeed.toFixed(1)}</b> ${diffLabel(
-    data1.maxSpeed,
-    data2.maxSpeed
-  )}
-⚡ Ускорения: <b>${data1.acc}</b> → <b>${data2.acc}</b> ${diffLabel(
-    data1.acc,
-    data2.acc
-  )}
-🛑 Торможения: <b>${data1.dec}</b> → <b>${data2.dec}</b> ${diffLabel(
-    data1.dec,
-    data2.dec
-  )}
-🔥 Z4: <b>${data1.z4.toFixed(1)}</b> → <b>${data2.z4.toFixed(
-    1
-  )}</b> ${diffLabel(data1.z4, data2.z4)}
-  🔥 Z5: <b>${data1.z5.toFixed(1)}</b> → <b>${data2.z5.toFixed(
-    1
-  )}</b> ${diffLabel(data1.z5, data2.z5)}
-🔥 Z4-Z5: <b>${data1.z4z5.toFixed(1)}</b> → <b>${data2.z4z5.toFixed(
-    1
-  )}</b> ${diffLabel(data1.z4z5, data2.z4z5)}
-💥 Мощность: <b>${data1.metabolicPower.toFixed(
-    2
-  )}</b> → <b>${data2.metabolicPower.toFixed(2)}</b> ${diffLabel(
-    data1.metabolicPower,
-    data2.metabolicPower,
-    " Вт/кг"
-  )}`;
+  const lines = [
+    t(lang, "match_stats.compare_title", {
+      left: data1.notes,
+      right: data2.notes,
+    }),
+    "",
+    ...items.map((item) =>
+      t(lang, "match_stats.compare_item", {
+        label: t(lang, `match_stats.${item.key}`.split(":")[0]).split(":")[0],
+        a: item.a,
+        b: item.b,
+        delta: delta(item.a, item.b, item.unit || ""),
+      })
+    ),
+  ];
+
+  return lines.join("\n");
 }
 
 module.exports = {

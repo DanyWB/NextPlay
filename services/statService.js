@@ -1,8 +1,9 @@
 const knex = require("./db");
 const {getUserByAthleteId} = require("./userService");
 const {parseISO} = require("date-fns");
+const {t} = require("./langService");
 
-async function getAvailableMonths(userId) {
+async function getAvailableMonths(userId, lang = "ru") {
   const sessions = await knex("athlete_session")
     .where("athlete", userId)
     .select("datetime_intervals");
@@ -12,15 +13,14 @@ async function getAvailableMonths(userId) {
   for (const s of sessions) {
     const start = s.datetime_intervals?.split("|")[0];
     if (!start) continue;
+
     const date = new Date(start);
-    const label = date.toLocaleString("ru-RU", {
-      month: "long",
-      year: "numeric",
-    });
-    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}`;
+    const engMonth = date.toLocaleString("en-US", {month: "long"}); // "March"
+    const year = date.getFullYear();
+    const localizedMonth = t(lang, `months.${engMonth}`) || engMonth;
+
+    const label = `${localizedMonth} ${year}`;
+    const value = `${year}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
     monthsSet.add(JSON.stringify({label, value}));
   }
@@ -32,7 +32,11 @@ async function getAspData(athleteId, month) {
   const year = parseInt(yearStr, 10);
   const monthNum = parseInt(monthStr, 10);
 
-  const allSessions = await knex("athlete_session").where("athlete", athleteId);
+  const allSessions = await knex("athlete_session as a")
+    .join("team_session as t", "a.teamsession", "t.id")
+    .where("a.athlete", athleteId)
+    .whereIn("t.category", [5272, 5275])
+    .select("a.*");
 
   // Фильтрация по дате через datetime_intervals
   const sessions = allSessions.filter((session) => {
@@ -93,15 +97,17 @@ async function getAspData(athleteId, month) {
 }
 
 async function getMppData(athleteId, month) {
-  const result = await knex("athlete_session")
-    .join("track", "athlete_session.track", "=", "track.id")
-    .where("athlete_session.athlete", athleteId)
-    .andWhereRaw("strftime('%Y-%m', track.timestamp) = ?", [month])
+  const result = await knex("athlete_session as a")
+    .join("track as t", "a.track", "t.id")
+    .join("team_session as ts", "a.teamsession", "ts.id")
+    .where("a.athlete", athleteId)
+    .whereIn("ts.category", [5272, 5275])
+    .andWhereRaw("strftime('%Y-%m', t.timestamp) = ?", [month])
     .select(
-      knex.raw("AVG(average_p) AS average_p"),
-      knex.raw("SUM(total_energy) AS total_energy"),
-      knex.raw("SUM(anaerobic_energy) AS anaerobic_energy"),
-      knex.raw("SUM(equivalent_distance) AS equivalent_distance")
+      knex.raw("AVG(a.average_p) AS average_p"),
+      knex.raw("SUM(a.total_energy) AS total_energy"),
+      knex.raw("SUM(a.anaerobic_energy) AS anaerobic_energy"),
+      knex.raw("SUM(a.equivalent_distance) AS equivalent_distance")
     )
     .first();
 

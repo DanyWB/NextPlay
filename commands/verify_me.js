@@ -1,16 +1,22 @@
 const db = require("../services/db");
-const {isVerified, getUser} = require("../services/userService");
+const {
+  isVerified,
+  getUser,
+  getUserLang,
+  requestVerification,
+} = require("../services/userService");
+const {t} = require("../services/langService");
 
 module.exports = (bot) => {
   bot.command("verify_me", async (ctx) => {
     const userId = ctx.from.id;
     const user = await getUser(userId);
+    const lang = await getUserLang(userId);
 
-    if (!user)
-      return ctx.reply("⚠️ Вы ещё не зарегистрированы. Отправьте /start.");
+    if (!user) return ctx.reply(t(lang, "verify_me.not_registered"));
 
     const verified = await isVerified(userId);
-    if (verified) return ctx.reply("✅ Вы уже верифицированы.");
+    if (verified) return ctx.reply(t(lang, "verify_me.already_verified"));
 
     // Проверка на повторный запрос
     // if (user.last_verification_request) {
@@ -27,14 +33,14 @@ module.exports = (bot) => {
     //   }
     // }
 
-    // Переход к этапу ввода ФИО
+    if (user.verification_requested) {
+      return ctx.reply(t(lang, "verify_me.request_sent"));
+    }
+
     ctx.session.state = "awaiting_full_name";
-    return ctx.reply(
-      "📝 Пожалуйста, введите ваше *Имя и Фамилию* через пробел (например: Иван Петров)",
-      {
-        parse_mode: "Markdown",
-      }
-    );
+    return ctx.reply(t(lang, "verify_me.enter_name"), {
+      parse_mode: "Markdown",
+    });
   });
 
   bot.on("message:text", async (ctx) => {
@@ -42,17 +48,16 @@ module.exports = (bot) => {
 
     const fullName = ctx.message.text.trim();
     const userId = ctx.from.id;
+    const lang = await getUserLang(userId);
 
-    if (!/^[A-Za-zА-Яа-яЁё]+ [A-Za-zА-Яа-яЁё]+$/.test(fullName)) {
-      return ctx.reply(
-        "⚠️ Пожалуйста, введите имя и фамилию *через пробел* (например: Иван Петров)",
-        {
-          parse_mode: "Markdown",
-        }
-      );
+    if (
+      !/^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ']+ [A-Za-zА-Яа-яЁёІіЇїЄєҐґ']+$/.test(fullName)
+    ) {
+      return ctx.reply(t(lang, "verify_me.invalid_name"), {
+        parse_mode: "Markdown",
+      });
     }
 
-    // Сохраняем meta и дату запроса
     await db("users")
       .where({id: userId})
       .update({
@@ -62,7 +67,6 @@ module.exports = (bot) => {
 
     ctx.session.state = null;
 
-    // Дополнительная проверка: имя сохранено?
     const userMetaCheck = await db("users").where({id: userId}).first();
     let parsedMeta;
     try {
@@ -72,12 +76,9 @@ module.exports = (bot) => {
     }
 
     if (!parsedMeta.full_name) {
-      return ctx.reply(
-        "❌ Не удалось сохранить Имя и Фамилию. Пожалуйста, попробуйте ещё раз командой /verify_me."
-      );
+      return ctx.reply(t(lang, "verify_me.not_saved"));
     }
 
-    // Отправка запроса админу
     const adminId = parseInt(process.env.ADMIN_ID);
     const clubs = await db("club").select("id", "name");
 
@@ -88,7 +89,10 @@ module.exports = (bot) => {
       },
     ]);
     buttons.push([
-      {text: "❌ Отклонить", callback_data: `verify_decline_${userId}`},
+      {
+        text: t(lang, "verify_me.button_decline"),
+        callback_data: `verify_decline_${userId}`,
+      },
     ]);
 
     function escapeMarkdownV2(text) {
@@ -98,37 +102,31 @@ module.exports = (bot) => {
     try {
       await bot.api.sendMessage(
         adminId,
-        `📥 *Запрос на верификацию*\n👤 Telegram ID: \`${userId}\`\n📛 Имя и Фамилия: *${escapeMarkdownV2(
-          fullName
-        )}*\n🔹 Username: @${escapeMarkdownV2(
-          ctx.from.username || `user_${userId}`
-        )}\n\nВыберите клуб, к которому относится пользователь:`,
+        t(lang, "verify_me.request_admin", {
+          id: userId,
+          name: escapeMarkdownV2(fullName),
+          username: escapeMarkdownV2(ctx.from.username || `user_${userId}`),
+        }),
         {
           parse_mode: "MarkdownV2",
           reply_markup: {inline_keyboard: buttons},
         }
       );
 
-      // Успешно отправлено админу → сообщаем пользователю
       await ctx.reply(
-        `✅ Спасибо, *${fullName}*.\n🕓 Ваш запрос на верификацию успешно отправлен. Ожидайте ответа администратора.`,
+        t(lang, "verify_me.request_success_user", {name: fullName}),
         {parse_mode: "Markdown"}
       );
     } catch (error) {
       console.error("❌ Ошибка при отправке сообщения админу:", error);
 
-      // Очищаем meta.full_name
       await db("users")
         .where({id: userId})
         .update({
           meta: JSON.stringify({}),
         });
 
-      await ctx.reply(
-        "🚫 Не удалось отправить запрос администратору. Попробуйте снова позже командой /verify_me."
-      );
+      await ctx.reply(t(lang, "verify_me.request_fail_user"));
     }
-
-    //
   });
 };

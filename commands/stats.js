@@ -1,23 +1,24 @@
 const {InlineKeyboard} = require("grammy");
+const {getUserLang} = require("../services/userService");
+const {t} = require("../services/langService");
 
 async function showStatsMenu(ctx) {
-  const keyboard = new InlineKeyboard()
-    .text("⚡ ASP (Профиль скорости)", "stats_asp")
-    .text("📊 Сравнить два ASP", "asp_compare")
-    .row()
-    .text("⚡ MPP (Метаболическая сила)", "stats_mpp")
-    .text("📊 Сравнить два MPP", "stats_mpp_compare");
-  // .text("🔙 Назад", "main_back");
+  const lang = await getUserLang(ctx.from.id);
 
-  await ctx.reply("📊 Выберите тип статистики:", {
+  const keyboard = new InlineKeyboard()
+    .text(t(lang, "stats.asp"), "stats_asp")
+    .text(t(lang, "stats.asp_compare"), "asp_compare")
+    .row()
+    .text(t(lang, "stats.mpp"), "stats_mpp")
+    .text(t(lang, "stats.mpp_compare"), "stats_mpp_compare");
+
+  await ctx.reply(t(lang, "stats.choose_type"), {
     reply_markup: keyboard,
   });
 }
 
-// регистрируем команду
 module.exports = (bot) => {
   bot.command("stats", showStatsMenu);
 };
 
-// ⬅️ экспортируем функцию отдельно
 module.exports.showStatsMenu = showStatsMenu;

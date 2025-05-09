@@ -720,26 +720,22 @@ async function syncData() {
   );
 }
 
-// Экспорт для использования в index.js
-module.exports = {
-  syncData,
-  startSyncLoop,
-};
-
-// добавь эту функцию:
-function startSyncLoop(intervalMs = 10 * 60 * 1000) {
-  console.log(
-    `🚀 Автосинхронизация включена. Интервал: ${intervalMs / 60000} мин.`
-  );
-  syncData();
-  setInterval(() => {
-    syncData().catch((err) => {
-      console.error("❌ Ошибка автосинхронизации:", err.message);
-    });
-  }, intervalMs);
+async function syncOnce() {
+  console.log("🔁 Запуск синхронизации (однократный)");
+  try {
+    await syncData();
+  } catch (err) {
+    console.error("❌ Ошибка синхронизации:", err.message);
+  }
 }
 
 // Если запущен напрямую: синхронизировать один раз
 if (require.main === module) {
   syncData().catch(console.error);
 }
+// Экспорт для использования в index.js
+module.exports = {
+  syncData,
+
+  syncOnce,
+};

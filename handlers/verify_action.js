@@ -17,19 +17,21 @@ const {
 } = require("../services/stateService");
 const {logAdminAction} = require("../services/logService");
 const db = require("../services/db");
+const {getUserLang} = require("../services/userService");
+const {t} = require("../services/langService");
 
 module.exports = (bot) => {
   console.log("✅ verify_action.js инициализация началась...");
 
-  // /verify — начать выбор пользователя
   bot.command("verify", async (ctx) => {
     const fromId = ctx.from.id;
+    const lang = await getUserLang(fromId);
     const user = await getUserById(fromId);
-    if (!user?.is_admin) return ctx.reply("❌ У вас нет прав администратора");
+    if (!user?.is_admin) return ctx.reply(t(lang, "verify_action.admin_only"));
 
     const unverifiedUsers = await getUnverifiedUsers();
     if (!unverifiedUsers.length)
-      return ctx.reply("✅ Нет пользователей, ожидающих верификацию.");
+      return ctx.reply(t(lang, "verify_action.no_requests"));
 
     const buttons = unverifiedUsers.map((u) => [
       {
@@ -38,14 +40,15 @@ module.exports = (bot) => {
       },
     ]);
 
-    await ctx.reply("Выберите пользователя для верификации:", {
+    await ctx.reply(t(lang, "verify_action.select_user"), {
       reply_markup: {inline_keyboard: buttons},
     });
   });
 
-  // Шаг 1: Выбор пользователя
   bot.callbackQuery(/^verify_select_user_(\d+)$/, async (ctx) => {
+    const lang = await getUserLang(ctx.from.id);
     const userId = parseInt(ctx.match[1]);
+
     updateVerifyContext(ctx.from.id, {
       stage: "select_club",
       userId,
@@ -61,13 +64,13 @@ module.exports = (bot) => {
 
     buttons.push([
       {
-        text: "❌ Отклонить",
+        text: t(lang, "verify_action.btn_decline"),
         callback_data: `verify_decline_${userId}`,
       },
     ]);
 
     await ctx.editMessageText(
-      `📥 *Запрос на верификацию*\n👤 Telegram ID: \`${userId}\`\n\nВыберите клуб, к которому относится пользователь:`,
+      t(lang, "verify_action.request_title", {id: userId}),
       {
         parse_mode: "Markdown",
         reply_markup: {inline_keyboard: buttons},
@@ -75,8 +78,8 @@ module.exports = (bot) => {
     );
   });
 
-  // Шаг 2: Выбор клуба
   bot.callbackQuery(/^verify_select_club_(\d+)_(\d+)$/, async (ctx) => {
+    const lang = await getUserLang(ctx.from.id);
     const userId = parseInt(ctx.match[1]);
     const clubId = parseInt(ctx.match[2]);
 
@@ -88,7 +91,7 @@ module.exports = (bot) => {
 
     const athletes = await getAthletesByClubId(clubId);
     if (!athletes.length)
-      return ctx.reply("🙁 Нет доступных атлетов в этом клубе.");
+      return ctx.reply(t(lang, "verify_action.no_athletes"));
 
     const buttons = athletes.slice(0, 20).map((athlete) => [
       {
@@ -99,18 +102,18 @@ module.exports = (bot) => {
 
     buttons.push([
       {
-        text: "🔙 Назад",
+        text: t(lang, "verify_action.btn_back"),
         callback_data: `verify_back_club_${userId}`,
       },
     ]);
 
-    await ctx.editMessageText("Выберите атлета для привязки:", {
+    await ctx.editMessageText(t(lang, "verify_action.select_athlete"), {
       reply_markup: {inline_keyboard: buttons},
     });
   });
 
-  // Шаг 2.1: Назад к выбору клуба
   bot.callbackQuery(/^verify_back_club_(\d+)$/, async (ctx) => {
+    const lang = await getUserLang(ctx.from.id);
     const userId = parseInt(ctx.match[1]);
     const clubs = await getAllClubs();
 
@@ -123,46 +126,49 @@ module.exports = (bot) => {
 
     clubButtons.push([
       {
-        text: "❌ Отклонить",
+        text: t(lang, "verify_action.btn_decline"),
         callback_data: `verify_decline_${userId}`,
       },
     ]);
 
     await ctx.editMessageText(
-      `📥 *Запрос на верификацию*\n👤 Telegram ID: \`${userId}\`\n\nВыберите клуб, к которому относится пользователь:`,
+      t(lang, "verify_action.request_title", {id: userId}),
       {
         parse_mode: "Markdown",
-        reply_markup: {
-          inline_keyboard: clubButtons,
-        },
+        reply_markup: {inline_keyboard: clubButtons},
       }
     );
 
     updateVerifyContext(ctx.from.id, {stage: "select_club", userId});
   });
 
-  // Шаг 3: Привязка к атлету
   bot.callbackQuery(/^verify_final_(\d+)_(\d+)$/, async (ctx) => {
+    const lang = await getUserLang(ctx.from.id);
+
     const userId = parseInt(ctx.match[1]);
     const athleteId = parseInt(ctx.match[2]);
+    const userLang = await getUserLang(userId);
 
     await verifyUser(userId, athleteId);
     clearVerifyContext(ctx.from.id);
 
     const athlete = await getAthleteById(athleteId);
 
-    // отправка сообщения пользователю
     try {
       await bot.api.sendMessage(
         userId,
-        "✅ Вы успешно прошли верификацию! Теперь вам доступны все функции бота."
+        t(userLang, "verify_action.notify_user_success")
       );
     } catch (error) {
       console.error("❌ Не удалось уведомить пользователя:", error);
     }
 
     await ctx.editMessageText(
-      `✅ Пользователь \`${userId}\` успешно привязан к атлету *${athlete.first_name} ${athlete.last_name}* (ID: ${athleteId})`,
+      t(lang, "verify_action.verify_success", {
+        id: userId,
+        name: `${athlete.first_name} ${athlete.last_name}`,
+        athleteId,
+      }),
       {parse_mode: "Markdown"}
     );
 
@@ -172,14 +178,13 @@ module.exports = (bot) => {
     );
   });
 
-  // Отклонить
   bot.callbackQuery(/^verify_decline_(\d+)$/, async (ctx) => {
+    const lang = await getUserLang(ctx.from.id);
     const userId = parseInt(ctx.match[1]);
 
     await declineUser(bot, userId);
     clearVerifyContext(ctx.from.id);
 
-    // Очищаем поле meta
     await db("users")
       .where({id: userId})
       .update({
@@ -187,26 +192,26 @@ module.exports = (bot) => {
       });
 
     await ctx.editMessageText(
-      `🚫 Запрос пользователя \`${userId}\` отклонён.`,
+      t(lang, "verify_action.decline_success", {id: userId}),
       {parse_mode: "Markdown"}
     );
 
     await logAdminAction(ctx.from.id, `Отклонил запрос пользователя ${userId}`);
   });
 
-  // Поиск по имени на этапе выбора атлета
   bot.on("message:text", async (ctx, next) => {
+    const lang = await getUserLang(ctx.from.id);
     const state = getVerifyContext(ctx.from.id);
     if (!state || state.stage !== "select_athlete") return await next();
 
     const query = ctx.message.text.trim();
     if (query.length < 2) {
-      return ctx.reply("❗ Введите хотя бы 2 символа.");
+      return ctx.reply(t(lang, "verify_action.enter_min_chars"));
     }
 
     const athletes = await searchAthletesByName(query, state.clubId);
     if (athletes.length === 0) {
-      return ctx.reply("🙁 Атлетов не найдено, попробуйте другое имя.");
+      return ctx.reply(t(lang, "verify_action.not_found"));
     }
 
     const buttons = athletes.slice(0, 20).map((athlete) => [
@@ -218,12 +223,12 @@ module.exports = (bot) => {
 
     buttons.push([
       {
-        text: "🔙 Назад",
+        text: t(lang, "verify_action.btn_back"),
         callback_data: `verify_back_club_${state.userId}`,
       },
     ]);
 
-    await ctx.reply("🔍 Найденные атлеты:", {
+    await ctx.reply(t(lang, "verify_action.found_athletes"), {
       reply_markup: {inline_keyboard: buttons},
     });
   });

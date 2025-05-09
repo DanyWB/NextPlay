@@ -95,6 +95,13 @@ async function declineUser(bot, telegramId) {
 async function getLinkedUsers() {
   return await db("users").select("id", "username").whereNotNull("athlete_id");
 }
+async function setUserLang(userId, lang) {
+  await db("users").where({id: userId}).update({lang});
+}
+async function getUserLang(userId) {
+  const user = await db("users").where({id: userId}).first();
+  return user?.lang || "ru";
+}
 
 module.exports = {
   createUserIfNotExists,
@@ -110,4 +117,6 @@ module.exports = {
   declineUser,
   unlinkUserFromAthlete,
   getLinkedUsers,
+  setUserLang,
+  getUserLang,
 };

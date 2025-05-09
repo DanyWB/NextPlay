@@ -2,7 +2,8 @@ require("dotenv").config();
 const {Bot, session} = require("grammy");
 const fs = require("fs");
 const path = require("path");
-const {syncData, startSyncLoop} = require("./connect");
+const {syncData, syncOnce} = require("./connect");
+const cron = require("node-cron");
 
 const {setAdmin} = require("./services/userService");
 
@@ -39,30 +40,21 @@ bot.catch((err) => {
 });
 
 (async () => {
-  // Меню команд
-  await bot.api.setMyCommands([
-    {command: "start", description: "🔹 Зарегистрироваться в системе"},
-    {command: "verify_me", description: "📥 Отправить запрос на верификацию"},
-    {command: "me_status", description: "👤 Показать мой статус"},
-    {command: "stats", description: "📊 Моя статистика"},
-    {command: "stats_matches", description: "📊 Моя Матчи"},
-    {
-      command: "verify",
-      description: "✅ Верифицировать пользователя (только для админа)",
-    },
-    {
-      command: "unlink",
-      description: "❌ Отвязать пользователя (только для админа)",
-    },
-  ]);
-
+  // await bot.api.setMyCommands(
+  //   [{command: "start", description: "Start the bot"}],
+  //   {
+  //     scope: {type: "default"},
+  //   }
+  // );
   const adminId = process.env.ADMIN_ID;
   if (adminId) {
     await setAdmin(parseInt(adminId), "Admin");
   }
   // 🔁 Синхронизируем данные + запускаем автообновление
-  const intervalMin = parseInt(process.env.SYNC_INTERVAL_MINUTES || "10", 10);
-  startSyncLoop(intervalMin * 60 * 1000);
-  //syncData();
+  // Запуск каждый день в 03:00
+  cron.schedule("0 3 * * *", () => {
+    console.log("🔁Плановая синхронизация в 03:00");
+    syncOnce(); // или конкретная функция типа syncOnce()
+  });
   bot.start().then(() => console.log("🤖 Бот запущен и ожидает команды..."));
 })();

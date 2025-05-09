@@ -1,5 +1,6 @@
 ﻿const db = require("./db");
-
+const {t} = require("./langService"); // путь подкорректируй по своему проекту
+const {format} = require("date-fns"); // если используешь formatMonth оттуда
 function formatMonth(dateStr) {
   const date = new Date(dateStr + "Z");
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
@@ -8,7 +9,7 @@ function formatMonth(dateStr) {
   )}`;
 }
 
-async function getAvailableMatchMonths(athleteId) {
+async function getAvailableMatchMonths(athleteId, lang = "ru") {
   const rows = await db("team_session")
     .distinct("team_session.id", "team_session.start_timestamp")
     .join("athlete_session", "team_session.id", "athlete_session.teamsession")
@@ -18,22 +19,25 @@ async function getAvailableMatchMonths(athleteId) {
     .orderBy("team_session.start_timestamp", "desc");
 
   const uniqueMonths = new Map();
+
   for (const row of rows) {
-    const month = formatMonth(row.start_timestamp);
+    const date = new Date(row.start_timestamp);
+    const month = formatMonth(row.start_timestamp); // возвращает строку типа "2024-03"
+
     if (!uniqueMonths.has(month)) {
+      const engMonth = date.toLocaleString("en-US", {month: "long"}); // "March"
+      const year = date.getFullYear();
+      const localizedMonth = t(lang, `months.${engMonth}`) || engMonth;
+
       uniqueMonths.set(month, {
-        label: new Date(row.start_timestamp).toLocaleString("ru-RU", {
-          month: "long",
-          year: "numeric",
-        }),
+        label: `${localizedMonth} ${year}`,
         value: month,
       });
     }
   }
 
-  return Array.from(uniqueMonths.values()).slice(0, 6); // последние 6 месяцев
+  return Array.from(uniqueMonths.values()).slice(0, 6).reverse();
 }
-
 async function getMatchesByMonth(athleteId, monthStr) {
   const [year, month] = monthStr.split("-");
   const start = new Date(`${year}-${month}-01`);

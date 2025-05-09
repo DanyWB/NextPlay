@@ -1,26 +1,29 @@
-const monthNames = {
-  "01": "Январь",
-  "02": "Февраль",
-  "03": "Март",
-  "04": "Апрель",
-  "05": "Май",
-  "06": "Июнь",
-  "07": "Июль",
-  "08": "Август",
-  "09": "Сентябрь",
-  10: "Октябрь",
-  11: "Ноябрь",
-  12: "Декабрь",
-};
+const {t} = require("../services/langService");
 
-// Функция, чтобы получить название месяца по строке '2025-04'
-function getMonthLabel(ym) {
+const engMonthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+// ym: строка формата "2025-04"
+function getMonthLabel(ym, lang = "ru") {
   const parts = ym.split("-");
-  const month = parts[1];
-  return monthNames[month] || ym; // если не найдено — вернёт оригинал
+  const index = parseInt(parts[1], 10) - 1;
+  const engMonth = engMonthNames[index] || ym;
+  const localized = t(lang, `months.${engMonth}`);
+  return localized || engMonth;
 }
 
 module.exports = {
-  monthNames, // если нужно вручную
-  getMonthLabel, // основная функция
+  getMonthLabel,
 };

@@ -1,6 +1,6 @@
-﻿const {InlineKeyboard} = require("grammy");
-const {getUser} = require("../services/userService");
-const {InputFile} = require("grammy");
+﻿const {InlineKeyboard, InputFile} = require("grammy");
+const {getUser, getUserLang} = require("../services/userService");
+const {t} = require("../services/langService");
 
 const {
   getAvailableMatchMonths,
@@ -14,209 +14,220 @@ const {
 } = require("../utils/matchFormatter");
 
 module.exports = (bot) => {
-  // Главное меню "Мои матчи"
   bot.command("stats_matches", async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
+
     if (!user?.athlete_id) {
-      return ctx.answerCallbackQuery({
-        text: "❌ Вы ещё не верифицированы.",
-        show_alert: true,
-      });
+      return (
+        ctx.answerCallbackQuery?.({
+          text: t(lang, "match_stats.not_verified"),
+          show_alert: true,
+        }) ?? ctx.reply(t(lang, "match_stats.not_verified"))
+      );
     }
 
     const keyboard = new InlineKeyboard()
-      .text("📊 Один матч", "match_single")
+      .text(t(lang, "match_stats.single_button"), "match_single")
       .row()
-      .text("⚖️ Сравнение матчей", "match_compare")
+      .text(t(lang, "match_stats.compare_button"), "match_compare")
       .row();
-    // .text("🔙 Назад", "stats_back");
 
-    await ctx.reply("Выберите режим просмотра матчей:", {
+    await ctx.reply(t(lang, "match_stats.select_mode"), {
       reply_markup: keyboard,
     });
   });
 
-  // Один матч: выбор месяца
   bot.callbackQuery("match_single", async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
+
     if (!user?.athlete_id) {
       return ctx.answerCallbackQuery({
-        text: "❌ Вы ещё не верифицированы.",
+        text: t(lang, "match_stats.not_verified"),
         show_alert: true,
       });
     }
 
-    const months = await getAvailableMatchMonths(user.athlete_id);
+    const months = await getAvailableMatchMonths(user.athlete_id, lang);
     if (!months.length) {
-      return ctx.reply("⚠️ Матчи не найдены.");
+      return ctx.reply(t(lang, "match_stats.no_matches"));
     }
 
     const keyboard = new InlineKeyboard();
     for (const month of months) {
       keyboard.text(month.label, `match_month_${month.value}`).row();
     }
-    keyboard.text("🔙 Назад", "stats_matches");
+    keyboard.text(t(lang, "match_stats.back_to_matches"), "stats_matches");
 
-    await ctx.editMessageText("📅 Выберите месяц с матчами:", {
+    await ctx.editMessageText(t(lang, "match_stats.select_month"), {
       reply_markup: keyboard,
     });
   });
 
-  // Один матч: выбор матча по месяцу
   bot.callbackQuery(/^match_month_(.+)$/, async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
     const month = ctx.match[1];
+
     if (!user?.athlete_id) {
-      return ctx.reply("❌ Вы не верифицированы.");
+      return ctx.reply(t(lang, "match_stats.not_verified"));
     }
 
     const matches = await getMatchesByMonth(user.athlete_id, month);
     if (!matches.length) {
-      return ctx.reply("⚠️ Матчи за выбранный месяц не найдены.");
+      return ctx.reply(t(lang, "match_stats.no_matches_month"));
     }
 
     const keyboard = new InlineKeyboard();
     for (const match of matches) {
       keyboard.text(match.name, `match_view_${match.id}`).row();
     }
-    keyboard.text("🔙 Назад", "match_single");
+    keyboard.text(t(lang, "match_stats.back_to_matches"), "match_single");
 
-    await ctx.editMessageText("🎯 Выберите матч:", {
+    await ctx.editMessageText(t(lang, "match_stats.select_match"), {
       reply_markup: keyboard,
     });
   });
 
-  // Один матч: отображение
   bot.callbackQuery(/^match_view_(\d+)$/, async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
+
     if (!user?.athlete_id) {
-      return ctx.reply("❌ Вы не верифицированы.");
+      return ctx.reply(t(lang, "match_stats.not_verified"));
     }
 
     const teamSessionId = Number(ctx.match[1]);
     const data = await getMatchStats(user.athlete_id, teamSessionId);
     if (!data) {
-      return ctx.reply("⚠️ Недостаточно данных для отображения матча.");
+      return ctx.reply(t(lang, "match_stats.not_enough_data"));
     }
 
     const {image} = await generateMatchChartImage(data);
-
-    const caption = formatMatchStats(data);
+    const caption = formatMatchStats(data, lang);
 
     await ctx.replyWithPhoto(image, {
       caption,
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().text(
-        "🔙 Назад к матчам",
+        t(lang, "match_stats.back_to_matches"),
         "stats_matches"
       ),
     });
   });
-  // Сравнение матчей: шаг 1 — выбор первого месяца
+
   bot.callbackQuery("match_compare", async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
+
     if (!user?.athlete_id) {
       return ctx.answerCallbackQuery({
-        text: "❌ Вы ещё не верифицированы.",
+        text: t(lang, "match_stats.not_verified"),
         show_alert: true,
       });
     }
 
-    const months = await getAvailableMatchMonths(user.athlete_id);
+    const months = await getAvailableMatchMonths(user.athlete_id, lang);
     if (!months.length) {
-      return ctx.reply("⚠️ Матчи не найдены.");
+      return ctx.reply(t(lang, "match_stats.no_matches"));
     }
 
     const keyboard = new InlineKeyboard();
     for (const m of months) {
       keyboard.text(m.label, `match_compare_month1_${m.value}`).row();
     }
-    keyboard.text("🔙 Назад", "stats_matches");
+    keyboard.text(t(lang, "match_stats.back_to_matches"), "stats_matches");
 
-    await ctx.editMessageText("📅 Выберите первый месяц:", {
+    await ctx.editMessageText(t(lang, "match_stats.select_month1"), {
       reply_markup: keyboard,
     });
   });
 
-  // Сравнение матчей: шаг 2 — выбор первого матча
   bot.callbackQuery(/^match_compare_month1_(.+)$/, async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
     const month = ctx.match[1];
+
     if (!user?.athlete_id) {
-      return ctx.reply("❌ Вы не верифицированы.");
+      return ctx.reply(t(lang, "match_stats.not_verified"));
     }
 
     ctx.session.matchCompare = {month1: month};
 
     const matches = await getMatchesByMonth(user.athlete_id, month);
     if (!matches.length) {
-      return ctx.reply("⚠️ В этом месяце нет матчей.");
+      return ctx.reply(t(lang, "match_stats.no_matches_month"));
     }
 
     const keyboard = new InlineKeyboard();
     for (const match of matches) {
       keyboard.text(match.name, `match_compare_match1_${match.id}`).row();
     }
-    keyboard.text("🔙 Назад", "match_compare");
+    keyboard.text(t(lang, "match_stats.back_to_matches"), "match_compare");
 
-    await ctx.editMessageText("🎯 Выберите первый матч:", {
+    await ctx.editMessageText(t(lang, "match_stats.select_match1"), {
       reply_markup: keyboard,
     });
   });
-  // Сравнение матчей: шаг 3 — выбор второго месяца
+
   bot.callbackQuery(/^match_compare_match1_(\d+)$/, async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
+
     if (!user?.athlete_id) {
-      return ctx.reply("❌ Вы не верифицированы.");
+      return ctx.reply(t(lang, "match_stats.not_verified"));
     }
 
     ctx.session.matchCompare.match1 = Number(ctx.match[1]);
 
-    const months = await getAvailableMatchMonths(user.athlete_id);
+    const months = await getAvailableMatchMonths(user.athlete_id, lang);
     const keyboard = new InlineKeyboard();
     for (const m of months) {
       keyboard.text(m.label, `match_compare_month2_${m.value}`).row();
     }
-    keyboard.text("🔙 Назад", "match_compare");
+    keyboard.text(t(lang, "match_stats.back_to_matches"), "match_compare");
 
-    await ctx.editMessageText("📅 Выберите второй месяц:", {
+    await ctx.editMessageText(t(lang, "match_stats.select_month2"), {
       reply_markup: keyboard,
     });
   });
 
-  // Сравнение матчей: шаг 4 — выбор второго матча
   bot.callbackQuery(/^match_compare_month2_(.+)$/, async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
     const month2 = ctx.match[1];
+
     if (!user?.athlete_id) {
-      return ctx.reply("❌ Вы не верифицированы.");
+      return ctx.reply(t(lang, "match_stats.not_verified"));
     }
 
     ctx.session.matchCompare.month2 = month2;
 
     const matches = await getMatchesByMonth(user.athlete_id, month2);
     if (!matches.length) {
-      return ctx.reply("⚠️ В этом месяце нет матчей.");
+      return ctx.reply(t(lang, "match_stats.no_matches_month"));
     }
 
     const keyboard = new InlineKeyboard();
     for (const match of matches) {
       keyboard.text(match.name, `match_compare_match2_${match.id}`).row();
     }
-    keyboard.text("🔙 Назад", "match_compare");
+    keyboard.text(t(lang, "match_stats.back_to_matches"), "match_compare");
 
-    await ctx.editMessageText("🎯 Выберите второй матч:", {
+    await ctx.editMessageText(t(lang, "match_stats.select_match2"), {
       reply_markup: keyboard,
     });
   });
 
-  // Сравнение матчей: шаг 5 — результат
   bot.callbackQuery(/^match_compare_match2_(\d+)$/, async (ctx) => {
     const user = await getUser(ctx.from.id);
+    const lang = await getUserLang(ctx.from.id);
     const match1 = ctx.session.matchCompare?.match1;
     const match2 = Number(ctx.match[1]);
+
     if (!match1 || !user?.athlete_id) {
-      return ctx.reply("❌ Ошибка при сравнении. Попробуйте снова.");
+      return ctx.reply(t(lang, "match_stats.compare_error"));
     }
 
     const [data1, data2] = await Promise.all([
@@ -225,7 +236,7 @@ module.exports = (bot) => {
     ]);
 
     if (!data1 || !data2) {
-      return ctx.reply("⚠️ Недостаточно данных для сравнения.");
+      return ctx.reply(t(lang, "match_stats.compare_insufficient"));
     }
 
     const {image} = await generateMatchChartImage(data1, data2);
@@ -237,7 +248,7 @@ module.exports = (bot) => {
       caption,
       parse_mode: "HTML",
       reply_markup: new InlineKeyboard().text(
-        "🔙 Назад к матчам",
+        t(lang, "match_stats.back_to_matches"),
         "stats_matches"
       ),
     });

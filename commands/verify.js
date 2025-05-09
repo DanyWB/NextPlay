@@ -1,43 +1,50 @@
-const db = require("../services/db");
+const {getUser, updateUser, getUserLang} = require("../services/userService");
 const {logUserAction} = require("../services/logService");
+const {t} = require("../services/langService");
 
 module.exports = (bot) => {
   bot.command("verify", async (ctx) => {
-    const fromId = ctx.from.id;
+    const adminId = parseInt(process.env.ADMIN_ID);
+    const isAdmin = ctx.from.id === adminId;
+    const lang = await getUserLang(ctx.from.id);
 
-    // Проверка: админ?
-    const admin = await db("users").where({id: fromId, is_admin: true}).first();
-    if (!admin) return ctx.reply("🚫 Только для администраторов");
-
-    // Получаем список неверифицированных пользователей
-    const users = await db("users").whereNull("athlete_id");
-
-    if (users.length === 0) {
-      return ctx.reply("🎉 Нет пользователей, ожидающих верификацию.");
+    if (!isAdmin) {
+      return ctx.reply(t(lang, "verify.not_admin"));
     }
 
-    const buttons = users.map((u) => {
-      let fullName = "Имя не указано";
+    const parts = ctx.message.text.split(" ");
+    if (parts.length !== 3) {
+      return ctx.reply(t(lang, "verify.invalid_format"));
+    }
 
-      try {
-        const meta = u.meta ? JSON.parse(u.meta) : {};
-        if (meta.full_name) fullName = meta.full_name;
-      } catch (err) {
-        console.error("Ошибка парсинга meta:", err);
-      }
+    const userId = parseInt(parts[1]);
+    const athleteId = parseInt(parts[2]);
 
-      return [
-        {
-          text: `${fullName} (@${u.username || "без username"}, ${u.id})`,
-          callback_data: `verify_select_user_${u.id}`,
-        },
-      ];
+    const user = await getUser(userId);
+    if (!user) {
+      return ctx.reply(t(lang, "verify.not_found"));
+    }
+
+    await updateUser(userId, {
+      athlete_id: athleteId,
+      verification_requested: false,
     });
 
-    await ctx.reply("👤 Выберите пользователя для верификации:", {
-      reply_markup: {inline_keyboard: buttons},
-    });
+    // логируем это действие
+    await logUserAction(
+      ctx.from.id,
+      "verify_user",
+      `user_id=${userId}, athlete_id=${athleteId}`
+    );
 
-    await logUserAction(fromId, "verify_list_users", "listed unverified users");
+    // уведомляем пользователя
+    const userLang = await getUserLang(userId);
+    await ctx.api.sendMessage(userId, t(userLang, "verify.notify_user"));
+
+    await ctx.reply(
+      t(lang, "verify.success")
+        .replace("${username}", user.username || `user_${userId}`)
+        .replace("${athlete_id}", athleteId)
+    );
   });
 };
