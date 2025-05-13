@@ -213,6 +213,10 @@ const TABLE_FIELDS = {
     "duration_power_zone_3",
     "duration_power_zone_4",
     "duration_power_zone_5",
+
+    "anaerobic_index",
+    "eccentric_index",
+    "edwards_tl",
   ],
 
   athlete_threshold: ["id", "athlete", "metric", "value", "created_at"],
@@ -597,6 +601,105 @@ async function syncData() {
     console.log(
       `🎯 Всего обработано сессий: ${processedCount}/${allData.athlete_session.length}`
     );
+    logStep("📥 Загрузка индексов по сессиям...");
+
+    const KPI_FIELDS = ["anaerobic_index", "eccentric_index", "edwards_tl"];
+    const normalize = (s) => (s || "").toUpperCase().trim();
+
+    // 1. Строим карту фамилия → athlete.id через player
+    const playerMap = {};
+    for (const p of allData.player || []) {
+      const lname = normalize(p.last_name);
+      if (lname && p.athlete) {
+        playerMap[lname] = p.athlete;
+      }
+    }
+
+    // 2. Группируем athlete_session по teamsession
+    const sessionsByTeamSession = {};
+    for (const session of allData.athlete_session || []) {
+      const teamId = session.teamsession;
+      if (!teamId) continue;
+      if (!sessionsByTeamSession[teamId]) sessionsByTeamSession[teamId] = [];
+      sessionsByTeamSession[teamId].push(session);
+    }
+
+    // 3. Загружаем индексы для каждой team_session
+    for (const [teamSessionId, sessions] of Object.entries(
+      sessionsByTeamSession
+    )) {
+      const indexResults = {}; // athlete.id → { kpi: value }
+
+      for (const kpi of KPI_FIELDS) {
+        try {
+          const res = await axios.get(
+            `${BASE_API}/team_session/${teamSessionId}/series/?field=${kpi}`,
+            {headers: {Authorization: `Token ${token}`}}
+          );
+
+          const entries = res.data?.[0]?.data || [];
+          for (const item of entries) {
+            const lname = normalize(item.athlete_name);
+            const athleteId = playerMap[lname];
+            if (athleteId) {
+              if (!indexResults[athleteId]) indexResults[athleteId] = {};
+              indexResults[athleteId][kpi] = item.y;
+            }
+          }
+
+          console.log(
+            `✅ ${kpi} загружен через /series для session ${teamSessionId}`
+          );
+        } catch (err) {
+          console.warn(
+            `⚠️ ${kpi} не загружен через /series для ${teamSessionId}: ${err.message}`
+          );
+        }
+      }
+
+      // fallback: /details/ если нет хотя бы одного kpi
+      const missing = !Object.keys(indexResults).length;
+      if (missing) {
+        try {
+          const res = await axios.get(
+            `${BASE_API}/team_session/${teamSessionId}/details/`,
+            {
+              headers: {Authorization: `Token ${token}`},
+            }
+          );
+
+          const players = res.data?.players || {};
+          for (const [athleteId, obj] of Object.entries(players)) {
+            if (!indexResults[athleteId]) indexResults[athleteId] = {};
+            for (const kpi of KPI_FIELDS) {
+              const val = obj?.[kpi]?.value;
+              if (val !== undefined && val !== null) {
+                indexResults[athleteId][kpi] = val;
+              }
+            }
+          }
+
+          console.log(
+            `✅ Индексы загружены через /details для ${teamSessionId}`
+          );
+        } catch (err) {
+          console.warn(
+            `❌ Ошибка загрузки /details для ${teamSessionId}:`,
+            err.message
+          );
+        }
+      }
+
+      // 4. Применяем к athlete_session
+      for (const session of sessions) {
+        const indexes = indexResults[session.athlete];
+        if (indexes) {
+          session.anaerobic_index = indexes.anaerobic_index ?? null;
+          session.eccentric_index = indexes.eccentric_index ?? null;
+          session.edwards_tl = indexes.edwards_tl ?? null;
+        }
+      }
+    }
   }
 
   if (allData.athlete_session?.length) {

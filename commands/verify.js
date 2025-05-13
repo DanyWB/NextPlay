@@ -30,6 +30,8 @@ module.exports = (bot) => {
       verification_requested: false,
     });
 
+    const userlang = await getUserLang(userId);
+    await setUserCommands(user, userlang, bot);
     // логируем это действие
     await logUserAction(
       ctx.from.id,

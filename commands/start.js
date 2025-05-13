@@ -14,7 +14,6 @@ module.exports = (bot) => {
 
     const user = await getUser(id);
     const lang = await getUserLang(id);
-    console.log("🔧 User language:", user);
     await setUserCommands(user, lang, bot);
 
     await ctx.reply(t(lang, "start.welcome"));

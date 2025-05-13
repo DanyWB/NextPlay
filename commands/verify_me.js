@@ -6,7 +6,7 @@ const {
   requestVerification,
 } = require("../services/userService");
 const {t} = require("../services/langService");
-
+const {setUserCommands} = require("../utils/setUserCommands");
 module.exports = (bot) => {
   bot.command("verify_me", async (ctx) => {
     const userId = ctx.from.id;

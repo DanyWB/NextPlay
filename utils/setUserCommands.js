@@ -23,7 +23,8 @@ async function setUserCommands(user, lang, bot) {
         command: "stats_matches",
         description: t(lang, "commands.stats_matches"),
       },
-      {command: "me_status", description: t(lang, "commands.me_status")}
+      {command: "me_status", description: t(lang, "commands.me_status")},
+      {command: "my_index", description: t(lang, "commands.my_index")}
     );
   }
 

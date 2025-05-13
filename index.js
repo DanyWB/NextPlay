@@ -23,6 +23,7 @@ bot.use(
 require("./handlers/verify_action")(bot);
 require("./handlers/asp_action")(bot);
 require("./handlers/mpp_action")(bot);
+require("./handlers/index_action")(bot);
 
 const commandsPath = path.join(__dirname, "commands");
 

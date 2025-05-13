@@ -100,6 +100,7 @@ async function setUserLang(userId, lang) {
 }
 async function getUserLang(userId) {
   const user = await db("users").where({id: userId}).first();
+  console.log(user);
   return user?.lang || "ru";
 }
 

@@ -1,6 +1,8 @@
 const {ChartJSNodeCanvas} = require("chartjs-node-canvas");
 const axios = require("axios");
 const {InputFile} = require("grammy");
+const path = require("path");
+const fs = require("fs");
 
 let width = 600;
 let height = 400;
@@ -601,8 +603,171 @@ async function generateMatchChartImage(data1, data2 = null) {
   return {image: new InputFile(buffer, "match-chart.png")};
 }
 
+const chartJSNodeCanvasEcIndex = new ChartJSNodeCanvas({
+  width: 1200,
+  height: 800,
+});
+
+async function generateEccentricChart(data, avg, username, lang = "ua") {
+  const labels = data.map((point) =>
+    new Date(point.date).toLocaleDateString("ru", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+  );
+  const weekStart = new Date(data[0].date);
+  const weekEnd = new Date(data[data.length - 1].date);
+  const formatter = new Intl.DateTimeFormat(lang === "ua" ? "ua-UA" : "ru-RU", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const titleDate = `${formatter.format(weekStart)} – ${formatter.format(
+    weekEnd
+  )}`;
+  const values = data.map((point) => point.value);
+
+  const config = {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Eccentric Index",
+          data: values,
+          borderColor: "cyan",
+          backgroundColor: "cyan",
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: lang === "ua" ? "Середнє значення" : "Среднее значение",
+          data: new Array(data.length).fill(avg),
+          borderColor: "red",
+          borderDash: [10, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      scales: {
+        y: {
+          min: -60,
+          max: 100,
+          title: {display: true, text: "Eccentric Index"},
+        },
+        x: {
+          title: {display: true, text: lang === "ua" ? "Дата" : "Дата"},
+        },
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: `Eccentric Index (${titleDate}) – ${username}`,
+          font: {size: 16},
+        },
+        legend: {position: "top"},
+      },
+    },
+  };
+
+  return await chartJSNodeCanvasEcIndex.renderToBuffer(config); // ← просто буфер
+}
+
+const chartJSNodeCanvasAnIndex = new ChartJSNodeCanvas({
+  width: 1200,
+  height: 800,
+});
+
+async function generateAnaerobicChart(data, avg, username, lang = "ua") {
+  const labels = data.map((point) =>
+    new Date(point.date).toLocaleDateString(lang, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+  );
+  const values = data.map((point) => point.value);
+  const weekStart = new Date(data[0].date);
+  const weekEnd = new Date(data[data.length - 1].date);
+
+  const formatter = new Intl.DateTimeFormat(lang === "uk" ? "uk-UA" : "ru-RU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  const titleDate = `${formatter.format(weekStart)} – ${formatter.format(
+    weekEnd
+  )}`;
+  const config = {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "AN index (%)",
+          data: values,
+          borderColor: "cyan",
+          backgroundColor: "cyan",
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: lang === "ua" ? "Середнє значення" : "Среднее значение",
+          data: new Array(data.length).fill(avg),
+          borderColor: "red",
+          borderDash: [10, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+        },
+        {
+          label:
+            lang === "ua"
+              ? "Максимальний рівень (40%)"
+              : "Максимальный уровень (40%)",
+          data: new Array(data.length).fill(40),
+          borderColor: "orange",
+          borderDash: [4, 4],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      scales: {
+        y: {
+          min: 32,
+          max: 48,
+          title: {display: true, text: "AN index (%)"},
+        },
+        x: {
+          title: {display: true, text: lang === "ua" ? "Дата" : "Дата"},
+        },
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: `AN index за (${titleDate}) – ${username}`,
+          font: {size: 16},
+        },
+        legend: {position: "top"},
+      },
+    },
+  };
+
+  return await chartJSNodeCanvasAnIndex.renderToBuffer(config);
+}
+
 module.exports = {
   generateChartImage,
   generateMatchChartImage,
   generateQuickGaugeImage,
+  generateEccentricChart,
+  generateAnaerobicChart,
 };

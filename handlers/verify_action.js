@@ -17,9 +17,9 @@ const {
 } = require("../services/stateService");
 const {logAdminAction} = require("../services/logService");
 const db = require("../services/db");
-const {getUserLang} = require("../services/userService");
+const {getUserLang, getUser} = require("../services/userService");
 const {t} = require("../services/langService");
-
+const {setUserCommands} = require("../utils/setUserCommands");
 module.exports = (bot) => {
   console.log("✅ verify_action.js инициализация началась...");
 
@@ -148,8 +148,10 @@ module.exports = (bot) => {
     const userId = parseInt(ctx.match[1]);
     const athleteId = parseInt(ctx.match[2]);
     const userLang = await getUserLang(userId);
+    const user = await getUser(userId);
 
     await verifyUser(userId, athleteId);
+    await setUserCommands(user, userLang, bot);
     clearVerifyContext(ctx.from.id);
 
     const athlete = await getAthleteById(athleteId);
