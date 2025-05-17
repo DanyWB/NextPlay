@@ -2,7 +2,7 @@ module.exports = {
   development: {
     client: "sqlite3",
     connection: {
-      filename: "./gpexe.db",
+      filename: path.resolve(__dirname, "gpexe.db"), // абсолютный путь
     },
     useNullAsDefault: true,
     migrations: {
