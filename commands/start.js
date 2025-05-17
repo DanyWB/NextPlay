@@ -13,7 +13,7 @@ module.exports = (bot) => {
     await logUserAction(id, "start", `username: @${username || "нет"}`);
 
     const user = await getUser(id);
-    const lang = await getUserLang(id);
+    const lang = await getUserLang(ctx);
     await setUserCommands(user, lang, bot);
 
     await ctx.reply(t(lang, "start.welcome"));

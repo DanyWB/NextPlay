@@ -15,7 +15,7 @@ module.exports = (bot) => {
   bot.callbackQuery(/^lang_(\w+)$/, async (ctx) => {
     const lang = ctx.match[1];
 
-    await setUserLang(ctx.from.id, lang);
+    await setUserLang(ctx, lang);
     const user = await getUser(ctx.from.id);
     await setUserCommands(user, lang, bot);
     await ctx.answerCallbackQuery();

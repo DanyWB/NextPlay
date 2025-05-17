@@ -1,8 +1,9 @@
 const {InlineKeyboard, InputFile} = require("grammy");
-const {getUser, getUserLang} = require("../services/userService");
+const {getUserLang} = require("../services/userService");
 const {getAvailableMonths, getAspData} = require("../services/statService");
 const {generateChartImage} = require("../utils/chartGenerator");
 const {monthsNames, getMonthLabel} = require("../utils/months");
+
 const {
   formatAspComparison,
   formatAspSummary,
@@ -12,18 +13,17 @@ const {t} = require("../services/langService");
 
 module.exports = (bot) => {
   bot.callbackQuery(/^stats_asp$/, async (ctx) => {
-    const tgId = ctx.from.id;
-    const lang = await getUserLang(tgId);
-    const user = await getUser(tgId);
+    const lang = await getUserLang(ctx);
+    const athleteId = ctx.session?.selectedAthleteId;
 
-    if (!user || !user.athlete_id) {
+    if (!athleteId) {
       return ctx.answerCallbackQuery({
         text: t(lang, "asp.not_verified"),
         show_alert: true,
       });
     }
 
-    const months = await getAvailableMonths(user.athlete_id, lang);
+    const months = await getAvailableMonths(athleteId, lang);
     const keyboard = new InlineKeyboard();
     for (const month of months) {
       keyboard.text(month.label, `asp_month_${month.value}`).row();
@@ -45,8 +45,8 @@ module.exports = (bot) => {
 
   bot.callbackQuery(/^asp_month_(.+)$/, async (ctx) => {
     const month = ctx.match[1];
-    const userId = ctx.from.id;
-    const lang = await getUserLang(userId);
+    const lang = await getUserLang(ctx);
+    const athleteId = ctx.session?.selectedAthleteId;
 
     await ctx.answerCallbackQuery();
 
@@ -59,17 +59,16 @@ module.exports = (bot) => {
     const waitMsg = await ctx.reply(t(lang, "asp.generating"));
 
     try {
-      const user = await getUser(userId);
-      if (!user || !user.athlete_id) {
+      if (!athleteId) {
         return ctx.reply(t(lang, "asp.not_verified_chart"));
       }
 
-      const aspData = await getAspData(user.athlete_id, month);
+      const aspData = await getAspData(athleteId, month);
       if (!aspData) {
         return ctx.reply(t(lang, "asp.no_data"));
       }
 
-      const {image} = await generateChartImage(aspData, "radar");
+      const {image} = await generateChartImage(aspData, null, lang, "radar");
 
       const summary = formatAspSummary(aspData, month, lang);
 
@@ -110,17 +109,14 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery("asp_compare", async (ctx) => {
-    const user = await getUser(ctx.from.id);
-    const lang = await getUserLang(ctx.from.id);
+    const athleteId = ctx.session?.selectedAthleteId;
+    const lang = await getUserLang(ctx);
 
-    if (!user || !user.athlete_id) {
-      return ctx.answerCallbackQuery({
-        text: t(lang, "asp.not_verified"),
-        show_alert: true,
-      });
+    if (!athleteId) {
+      return ctx.reply(t(lang, "asp.not_verified"));
     }
 
-    const months = await getAvailableMonths(user.athlete_id, lang);
+    const months = await getAvailableMonths(athleteId, lang);
     const keyboard = new InlineKeyboard();
     for (const m of months) {
       keyboard.text(m.label, `asp_compare_month1_${m.value}`).row();
@@ -136,15 +132,12 @@ module.exports = (bot) => {
   bot.callbackQuery(/^asp_compare_month1_(.+)$/, async (ctx) => {
     const month1 = ctx.match[1];
     ctx.session.aspCompare = {month1};
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
+    const athleteId = ctx.session?.selectedAthleteId;
 
-    const months = await getAvailableMonths(
-      (
-        await getUser(ctx.from.id)
-      ).athlete_id,
-      lang
-    );
+    if (!athleteId) return ctx.reply(t(lang, "asp.compare_error"));
 
+    const months = await getAvailableMonths(athleteId, lang);
     const keyboard = new InlineKeyboard();
     for (const m of months) {
       keyboard.text(m.label, `asp_compare_month2_${m.value}`).row();
@@ -163,12 +156,12 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery(/^asp_compare_month2_(.+)$/, async (ctx) => {
-    const user = await getUser(ctx.from.id);
-    const lang = await getUserLang(ctx.from.id);
+    const athleteId = ctx.session?.selectedAthleteId;
+    const lang = await getUserLang(ctx);
     const month1 = ctx.session.aspCompare?.month1;
     const month2 = ctx.match[1];
 
-    if (!month1 || !month2 || !user || !user.athlete_id) {
+    if (!month1 || !month2 || !athleteId) {
       return ctx.reply(t(lang, "asp.compare_error"));
     }
 
@@ -177,15 +170,15 @@ module.exports = (bot) => {
 
     try {
       const [data1, data2] = await Promise.all([
-        getAspData(user.athlete_id, month1),
-        getAspData(user.athlete_id, month2),
+        getAspData(athleteId, month1),
+        getAspData(athleteId, month2),
       ]);
 
       if (!data1 || !data2) {
         return ctx.reply(t(lang, "asp.compare_no_data"));
       }
 
-      const {image} = await generateChartImage(data1, data2);
+      const {image} = await generateChartImage(data1, data2, lang);
       const summary = formatAspComparison(
         data1,
         data2,
@@ -206,7 +199,7 @@ module.exports = (bot) => {
 
   bot.callbackQuery("asp_compare_reset", async (ctx) => {
     ctx.session.aspCompare = {};
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     return ctx.reply(t(lang, "asp.reset_confirm"));
   });
 };

@@ -1,13 +1,17 @@
 ﻿// utils/setUserCommands.js
 const {t} = require("../services/langService");
-
+const {getFullUser} = require("../services/userService");
 async function setUserCommands(user, lang, bot) {
+  const isAthlete = !!user.athlete_id;
+  const isCoach = user.role === "coach";
+  const {isHeadCoach} = await getFullUser(user.id);
+  console.log(getFullUser(user.id));
   let commands = [
     {command: "start", description: t(lang, "commands.start")},
     {command: "set_lang", description: t(lang, "commands.set_lang")},
   ];
 
-  if (!user.athlete_id) {
+  if (!isAthlete && !isCoach) {
     // не верифицирован
     commands.push({
       command: "verify_me",
@@ -15,16 +19,16 @@ async function setUserCommands(user, lang, bot) {
     });
   }
 
-  if (user.athlete_id) {
-    // верифицированный пользователь
+  if (isAthlete || isCoach || isHeadCoach) {
+    console.log("1111");
     commands.push(
       {command: "stats", description: t(lang, "commands.stats")},
       {
         command: "stats_matches",
         description: t(lang, "commands.stats_matches"),
       },
-      {command: "me_status", description: t(lang, "commands.me_status")},
-      {command: "my_index", description: t(lang, "commands.my_index")}
+      {command: "my_index", description: t(lang, "commands.my_index")},
+      {command: "me_status", description: t(lang, "commands.me_status")}
     );
   }
 

@@ -1,6 +1,7 @@
 const {
   getUnverifiedUsers,
   verifyUser,
+  verifyCoach,
   declineUser,
   getUserById,
   getAllClubs,
@@ -20,12 +21,13 @@ const db = require("../services/db");
 const {getUserLang, getUser} = require("../services/userService");
 const {t} = require("../services/langService");
 const {setUserCommands} = require("../utils/setUserCommands");
+
 module.exports = (bot) => {
   console.log("✅ verify_action.js инициализация началась...");
 
   bot.command("verify", async (ctx) => {
     const fromId = ctx.from.id;
-    const lang = await getUserLang(fromId);
+    const lang = await getUserLang(ctx);
     const user = await getUserById(fromId);
     if (!user?.is_admin) return ctx.reply(t(lang, "verify_action.admin_only"));
 
@@ -46,7 +48,7 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery(/^verify_select_user_(\d+)$/, async (ctx) => {
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const userId = parseInt(ctx.match[1]);
 
     updateVerifyContext(ctx.from.id, {
@@ -69,6 +71,13 @@ module.exports = (bot) => {
       },
     ]);
 
+    buttons.push([
+      {
+        text: "\ud83c\udf93 Назначить тренером",
+        callback_data: `verify_select_team_${userId}`,
+      },
+    ]);
+
     await ctx.editMessageText(
       t(lang, "verify_action.request_title", {id: userId}),
       {
@@ -79,7 +88,7 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery(/^verify_select_club_(\d+)_(\d+)$/, async (ctx) => {
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const userId = parseInt(ctx.match[1]);
     const clubId = parseInt(ctx.match[2]);
 
@@ -113,7 +122,7 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery(/^verify_back_club_(\d+)$/, async (ctx) => {
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const userId = parseInt(ctx.match[1]);
     const clubs = await getAllClubs();
 
@@ -143,7 +152,7 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery(/^verify_final_(\d+)_(\d+)$/, async (ctx) => {
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
 
     const userId = parseInt(ctx.match[1]);
     const athleteId = parseInt(ctx.match[2]);
@@ -162,7 +171,7 @@ module.exports = (bot) => {
         t(userLang, "verify_action.notify_user_success")
       );
     } catch (error) {
-      console.error("❌ Не удалось уведомить пользователя:", error);
+      console.error("\u274c Не удалось уведомить пользователя:", error);
     }
 
     await ctx.editMessageText(
@@ -181,7 +190,7 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery(/^verify_decline_(\d+)$/, async (ctx) => {
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const userId = parseInt(ctx.match[1]);
 
     await declineUser(bot, userId);
@@ -189,9 +198,7 @@ module.exports = (bot) => {
 
     await db("users")
       .where({id: userId})
-      .update({
-        meta: JSON.stringify({}),
-      });
+      .update({meta: JSON.stringify({})});
 
     await ctx.editMessageText(
       t(lang, "verify_action.decline_success", {id: userId}),
@@ -201,8 +208,64 @@ module.exports = (bot) => {
     await logAdminAction(ctx.from.id, `Отклонил запрос пользователя ${userId}`);
   });
 
+  bot.callbackQuery(/^verify_select_team_(\d+)$/, async (ctx) => {
+    const lang = await getUserLang(ctx);
+    const userId = Number(ctx.match[1]);
+
+    updateVerifyContext(ctx.from.id, {
+      stage: "select_team",
+      userId,
+    });
+
+    const teams = await db("team").select("id", "name");
+    const buttons = teams.map((team) => [
+      {
+        text: team.name,
+        callback_data: `verify_confirm_coach_${userId}_${team.id}`,
+      },
+    ]);
+
+    buttons.push([
+      {
+        text: t(lang, "verify_action.btn_decline"),
+        callback_data: `verify_decline_${userId}`,
+      },
+    ]);
+
+    await ctx.editMessageText(t(lang, "verify_action.select_team"), {
+      reply_markup: {inline_keyboard: buttons},
+    });
+  });
+
+  bot.callbackQuery(/^verify_confirm_coach_(\d+)_(\d+)$/, async (ctx) => {
+    const lang = await getUserLang(ctx);
+    const userId = Number(ctx.match[1]);
+    const teamId = Number(ctx.match[2]);
+    const user = await getUser(userId);
+    const userLang = await getUserLang(userId);
+
+    await verifyCoach(userId, teamId);
+    await setUserCommands(user, userLang, bot);
+    clearVerifyContext(ctx.from.id);
+
+    await bot.api.sendMessage(
+      userId,
+      t(userLang, "verify_action.notify_user_success")
+    );
+
+    await ctx.editMessageText(
+      t(lang, "verify_action.verify_success_coach", {id: userId, teamId}),
+      {parse_mode: "Markdown"}
+    );
+
+    await logAdminAction(
+      ctx.from.id,
+      `Верифицировал пользователя ${userId} как тренера команды ${teamId}`
+    );
+  });
+
   bot.on("message:text", async (ctx, next) => {
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const state = getVerifyContext(ctx.from.id);
     if (!state || state.stage !== "select_athlete") return await next();
 

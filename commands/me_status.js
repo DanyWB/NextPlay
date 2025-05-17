@@ -1,22 +1,22 @@
-const {getUser} = require("../services/userService");
+const {getFullUser} = require("../services/userService");
 const {getAthleteById, getClubById} = require("../services/athleteService");
 const {getUserLang} = require("../services/userService");
 const {t} = require("../services/langService");
-
+const db = require("../services/db");
 function escapeMarkdown(text) {
   return text.replace(/([\[\]()*_~`>#+=|{}.!\\\-])/g, "\\$1");
 }
 module.exports = (bot) => {
   bot.command("me_status", async (ctx) => {
     const id = ctx.from.id;
-    const user = await getUser(id);
+    const user = await getFullUser(id);
 
     if (!user) {
       const lang = "ru"; // на случай если нет пользователя
       return ctx.reply(t(lang, "me_status.not_registered"));
     }
 
-    const lang = await getUserLang(id);
+    const lang = await getUserLang(ctx);
     const username = user.username || `user_${user.id}`;
     let status = t(lang, "me_status.status.unverified");
     let clubName = "";
@@ -37,7 +37,20 @@ module.exports = (bot) => {
         }
       }
     }
+    if (user.role === "coach") {
+      status = t(lang, "me_status.status.coach");
 
+      if (user.team_id) {
+        const team = await db("team").where({id: user.team_id}).first();
+        if (team?.name) {
+          clubName = team.name;
+        }
+      }
+    }
+
+    if (user.isHeadCoach) {
+      status = t(lang, "me_status.status.headcoach");
+    }
     if (user.is_admin) {
       let verifiedName = "";
       if (user.athlete_id) {

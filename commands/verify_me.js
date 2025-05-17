@@ -94,6 +94,12 @@ module.exports = (bot) => {
         callback_data: `verify_decline_${userId}`,
       },
     ]);
+    buttons.push([
+      {
+        text: "🎓 Назначить тренером",
+        callback_data: `verify_select_team_${userId}`,
+      },
+    ]);
 
     function escapeMarkdownV2(text) {
       return text.replace(/[_*[\]()~`>#+=|{}.!\\]/g, "\\$&");

@@ -1,23 +1,26 @@
-﻿const {InlineKeyboard} = require("grammy");
+﻿const {InlineKeyboard, InputFile} = require("grammy");
 const {getUserLang} = require("../services/userService");
-const {getUser} = require("../services/userService");
-const {getWeeksWithData} = require("../services/indexService");
+const {
+  getWeeksWithData,
+  getAvailableIndexes,
+} = require("../services/indexService");
 const {t} = require("../services/langService");
 const {formatWeekRange} = require("../utils/dateUtils");
-const {getAvailableIndexes} = require("../services/indexService");
 const {
   generateEccentricChart,
   generateAnaerobicChart,
 } = require("../utils/chartGenerator");
 const db = require("../services/db");
-const {InputFile} = require("grammy");
+
 module.exports = (bot) => {
   bot.callbackQuery("index:back", async (ctx) => {
-    const user = await getUser(ctx.from.id);
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const translate = (key) => t(lang, `my_index.${key}`);
 
-    const indexes = await getAvailableIndexes(user.athlete_id);
+    const athleteId = ctx.session?.selectedAthleteId;
+    if (!athleteId) return ctx.reply(translate("no_data"));
+
+    const indexes = await getAvailableIndexes(athleteId);
     if (!indexes.length) {
       return ctx.reply(translate("no_data"));
     }
@@ -33,20 +36,22 @@ module.exports = (bot) => {
       reply_markup: keyboard,
     });
   });
+
   bot.callbackQuery(/^index:([^:]+)$/, async (ctx) => {
     const indexName = ctx.match[1];
-    const user = await getUser(ctx.from.id);
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const translate = (key) => t(lang, `my_index.${key}`);
+    const athleteId = ctx.session?.selectedAthleteId;
+    if (!athleteId) return ctx.reply(translate("no_data"));
 
-    const weeks = await getWeeksWithData(user.athlete_id, indexName);
+    const weeks = await getWeeksWithData(athleteId, indexName);
     if (!weeks.length) {
       return ctx.editMessageText(translate("no_data"));
     }
 
     const keyboard = new InlineKeyboard();
     weeks.forEach((weekStart) => {
-      const label = formatWeekRange(weekStart); // 08.07 – 14.07
+      const label = formatWeekRange(weekStart);
       keyboard.text(label, `index:${indexName}:${weekStart}`).row();
     });
     keyboard.text(translate("back"), "index:back");
@@ -55,18 +60,23 @@ module.exports = (bot) => {
       reply_markup: keyboard,
     });
   });
+
   bot.callbackQuery(/^index:([^:]+):(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
     try {
       await ctx.deleteMessage();
     } catch (_) {}
     const [_, indexName, weekStartStr] = ctx.match;
-    const user = await getUser(ctx.from.id);
-    const lang = await getUserLang(ctx.from.id);
+    const lang = await getUserLang(ctx);
     const translate = (key) => t(lang, key);
+
+    const athleteId = ctx.session?.selectedAthleteId;
+    if (!athleteId) return ctx.reply(translate("my_index.no_data"));
+
     const athlete = await db("athlete")
       .select("first_name", "last_name")
-      .where({id: user.athlete_id})
+      .where({id: athleteId})
       .first();
+
     const fullName = athlete
       ? `${athlete.last_name?.toUpperCase() || ""} ${
           athlete.first_name || ""
@@ -79,7 +89,7 @@ module.exports = (bot) => {
 
     const rows = await db("athlete_session")
       .select(indexName, "datetime_intervals")
-      .where({athlete: user.athlete_id})
+      .where({athlete: athleteId})
       .whereNotNull(indexName)
       .whereRaw("substr(datetime_intervals, 1, 10) BETWEEN ? AND ?", [
         weekStartStr,
@@ -88,7 +98,7 @@ module.exports = (bot) => {
 
     const values = rows.map((r) => parseFloat(r[indexName])).filter(Boolean);
     if (!values.length) {
-      return ctx.editMessageText(translate("no_data_week"));
+      return ctx.editMessageText(translate("my_index.no_data_week"));
     }
 
     const avg = values.reduce((a, b) => a + b, 0) / values.length;
@@ -102,7 +112,7 @@ module.exports = (bot) => {
       const imageBuffer = await generateEccentricChart(
         dataByDay,
         avg,
-        fullName || "Атлет",
+        fullName,
         lang
       );
       const image = new InputFile(imageBuffer, "eccentric_index.png");
@@ -111,14 +121,16 @@ module.exports = (bot) => {
         translate("my_index.back"),
         "index:back"
       );
+
       return ctx.replyWithPhoto(image, {
-        caption: `${translate(`my_index.${indexName}`)}\n\n${translate(
+        caption: `${translate("my_index.desc_" + indexName)}\n\n${translate(
           "my_index.average_value"
         )}: *${avg.toFixed(2)}*`,
         parse_mode: "Markdown",
         reply_markup: keyboard,
       });
     }
+
     if (indexName === "anaerobic_index") {
       const dataByDay = rows
         .map((r) => ({
@@ -126,17 +138,6 @@ module.exports = (bot) => {
           value: parseFloat(r[indexName]),
         }))
         .filter((d) => !isNaN(d.value));
-
-      const athlete = await db("athlete")
-        .select("first_name", "last_name")
-        .where({id: user.athlete_id})
-        .first();
-
-      const fullName = athlete
-        ? `${athlete.last_name?.toUpperCase() || ""} ${
-            athlete.first_name || ""
-          }`.trim()
-        : "Атлет";
 
       const buffer = await generateAnaerobicChart(
         dataByDay,
@@ -152,7 +153,7 @@ module.exports = (bot) => {
       );
 
       return ctx.replyWithPhoto(photo, {
-        caption: `${translate("my_index." + indexName)}\n\n${translate(
+        caption: `${translate("my_index.desc_" + indexName)}\n\n${translate(
           "my_index.average_value"
         )}: *${avg.toFixed(2)}%*`,
         parse_mode: "Markdown",

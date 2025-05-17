@@ -1,11 +1,12 @@
 const {ChartJSNodeCanvas} = require("chartjs-node-canvas");
+
 const axios = require("axios");
 const {InputFile} = require("grammy");
 const path = require("path");
 const fs = require("fs");
 
-let width = 600;
-let height = 400;
+let width = 700;
+let height = 500;
 const chartJSNodeCanvas = new ChartJSNodeCanvas({
   width,
   height,
@@ -15,15 +16,14 @@ const chartJSNodeCanvas = new ChartJSNodeCanvas({
   },
 });
 
-async function generateChartImage(data1, data2 = null, type = "radar") {
-  const labels = [
-    "Минут на поле",
-    "Ср. макс. скорость",
-    "Ср. макс. ускорение",
-    "Ср. макс. торможение",
-    "Дист. Z4-Z5 (м/мин)",
-    // "Метабол. сила",
-  ];
+async function generateChartImage(
+  data1,
+  data2 = null,
+  lang = "ua",
+  type = "radar"
+) {
+  const {t} = require("../services/langService");
+  const labels = t(lang, "asp_labels");
 
   const rawValues1 = [
     data1.minutes,
@@ -145,7 +145,7 @@ function getChartConfig(
         },
         title: {
           display: true,
-          text: values2 ? "Сравнение ASP" : "ASP Профиль",
+          text: values2 ? "ASP-1 / ASP-2" : "ASP",
           color: "#ffffff",
           font: {
             size: 20,
@@ -302,21 +302,23 @@ function getChartConfigMatch(
         beforeDraw: (chart) => {
           const {ctx} = chart;
           ctx.save();
-          ctx.font = "18px 'DejaVu Sans'";
-          ctx.fillStyle = "#ffffff"; // яркий белый текст
+          ctx.font = "20px 'DejaVu Sans'";
           ctx.textAlign = "center";
-          ctx.textBaseline = "bottom";
 
           const datasets = chart.data.datasets;
           datasets.forEach((dataset, dsIndex) => {
             const meta = chart.getDatasetMeta(dsIndex);
             const raw = dsIndex === 0 ? raw1 : raw2;
+            const color = dsIndex === 0 ? "#4A90E2" : "#FFB74D"; // ярче синий и оранжевый
+            const offset = dsIndex === 0 ? 20 : -14; // сильнее отодвинуть вверх / вниз
+
+            ctx.fillStyle = color;
 
             meta.data.forEach((point, i) => {
               const {x, y} = point.tooltipPosition();
               const value = raw?.[i];
               if (value !== undefined) {
-                ctx.fillText(value.toFixed(1), x, y - 6);
+                ctx.fillText(value.toFixed(1), x, y + offset);
               }
             });
           });
@@ -519,16 +521,9 @@ const chartJSNodeCanvasMatch = new ChartJSNodeCanvas({
   backgroundColour: "black",
 });
 
-async function generateMatchChartImage(data1, data2 = null) {
-  const labels = [
-    "Минуты",
-    "Дистанция",
-    "Макс. скорость",
-    "Ускорения",
-    "Торможения",
-    "Z4-Z5 (м/мин)",
-    "Мощность",
-  ];
+async function generateMatchChartImage(data1, data2 = null, lang = "ua") {
+  const {t} = require("../services/langService");
+  const labels = t(lang, "match_stats_labels");
 
   const rawValues1 = [
     data1.minutes,
@@ -606,6 +601,7 @@ async function generateMatchChartImage(data1, data2 = null) {
 const chartJSNodeCanvasEcIndex = new ChartJSNodeCanvas({
   width: 1200,
   height: 800,
+  backgroundColour: "#1e1e1e",
 });
 
 async function generateEccentricChart(data, avg, username, lang = "ua") {
@@ -616,9 +612,10 @@ async function generateEccentricChart(data, avg, username, lang = "ua") {
       year: "numeric",
     })
   );
+
   const weekStart = new Date(data[0].date);
   const weekEnd = new Date(data[data.length - 1].date);
-  const formatter = new Intl.DateTimeFormat(lang === "ua" ? "ua-UA" : "ru-RU", {
+  const formatter = new Intl.DateTimeFormat(lang === "ua" ? "uk-UA" : "ru-RU", {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -657,10 +654,18 @@ async function generateEccentricChart(data, avg, username, lang = "ua") {
         y: {
           min: -60,
           max: 100,
-          title: {display: true, text: "Eccentric Index"},
+          title: {display: true, text: "Eccentric Index", color: "white"},
+          ticks: {color: "white"},
+          grid: {color: "#444"},
         },
         x: {
-          title: {display: true, text: lang === "ua" ? "Дата" : "Дата"},
+          title: {
+            display: true,
+            text: lang === "ua" ? "Дата" : "Дата",
+            color: "white",
+          },
+          ticks: {color: "white"},
+          grid: {color: "#444"},
         },
       },
       plugins: {
@@ -668,18 +673,23 @@ async function generateEccentricChart(data, avg, username, lang = "ua") {
           display: true,
           text: `Eccentric Index (${titleDate}) – ${username}`,
           font: {size: 16},
+          color: "white",
         },
-        legend: {position: "top"},
+        legend: {
+          position: "top",
+          labels: {color: "white"},
+        },
       },
     },
   };
 
-  return await chartJSNodeCanvasEcIndex.renderToBuffer(config); // ← просто буфер
+  return await chartJSNodeCanvasEcIndex.renderToBuffer(config);
 }
 
 const chartJSNodeCanvasAnIndex = new ChartJSNodeCanvas({
   width: 1200,
   height: 800,
+  backgroundColour: "#1e1e1e",
 });
 
 async function generateAnaerobicChart(data, avg, username, lang = "ua") {
@@ -703,6 +713,7 @@ async function generateAnaerobicChart(data, avg, username, lang = "ua") {
   const titleDate = `${formatter.format(weekStart)} – ${formatter.format(
     weekEnd
   )}`;
+
   const config = {
     type: "line",
     data: {
@@ -744,19 +755,31 @@ async function generateAnaerobicChart(data, avg, username, lang = "ua") {
         y: {
           min: 32,
           max: 48,
-          title: {display: true, text: "AN index (%)"},
+          title: {display: true, text: "AN index (%)", color: "white"},
+          ticks: {color: "white"},
+          grid: {color: "#444"},
         },
         x: {
-          title: {display: true, text: lang === "ua" ? "Дата" : "Дата"},
+          title: {
+            display: true,
+            text: lang === "ua" ? "Дата" : "Дата",
+            color: "white",
+          },
+          ticks: {color: "white"},
+          grid: {color: "#444"},
         },
       },
       plugins: {
         title: {
           display: true,
-          text: `AN index за (${titleDate}) – ${username}`,
+          text: `AN index за тиждень (${titleDate}) – ${username}`,
           font: {size: 16},
+          color: "white",
         },
-        legend: {position: "top"},
+        legend: {
+          position: "top",
+          labels: {color: "white"},
+        },
       },
     },
   };

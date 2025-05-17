@@ -1,6 +1,6 @@
 ﻿const db = require("../services/db");
 const {InlineKeyboard} = require("grammy");
-const {unlinkUserFromAthlete, getUserLang} = require("../services/userService");
+const {unlinkUser, getUserLang} = require("../services/userService");
 const {t} = require("../services/langService");
 
 module.exports = (bot) => {
@@ -13,7 +13,9 @@ module.exports = (bot) => {
 
     const users = await db("users")
       .select("id", "username")
-      .whereNotNull("athlete_id");
+      .where(function () {
+        this.whereNotNull("athlete_id").orWhereNotNull("team_id");
+      });
 
     if (users.length === 0) {
       return ctx.reply(t(lang, "unlink_menu.no_users"));
@@ -45,8 +47,7 @@ module.exports = (bot) => {
     const tgId = ctx.match[1];
 
     try {
-      await unlinkUserFromAthlete(tgId);
-
+      await unlinkUser(tgId);
       await ctx.answerCallbackQuery({
         text: t(lang, "unlink_menu.success_callback"),
       });
