@@ -36,7 +36,9 @@ async function setUserCommands(user, lang, bot) {
     // админ
     commands.push(
       {command: "unlink", description: t(lang, "commands.unlink")},
-      {command: "verify", description: t(lang, "commands.verify")}
+      {command: "verify", description: t(lang, "commands.verify")},
+      {command: "add_api", description: "Добавить АПИ"},
+      {command: "toggle_api", description: "Вкл / Выкл Апи"}
     );
   }
 

@@ -6,22 +6,7 @@ const crypto = require("crypto");
 const axios = require("axios");
 const knex = require("./services/db"); // ✅ теперь через knexfile.js
 
-const BASE_API = "https://e05.gpexe.com/api";
-const AUTH_URL = `${BASE_API}-token-auth/`;
-const SYNC_STATE_FILE = path.join(__dirname, "last_sync.json");
 const ERROR_LOG_FILE = path.join(__dirname, "sync_errors.log");
-
-const ENTITY_ENDPOINTS = {
-  club: `${BASE_API}/club/`,
-  team: `${BASE_API}/team/`,
-  athlete: `${BASE_API}/athlete/`,
-  player: `${BASE_API}/player/`,
-  playing_role: `${BASE_API}/playing_role/`,
-  device: `${BASE_API}/device/`,
-  track: `${BASE_API}/track/`,
-  team_session: `${BASE_API}/team_session/`,
-  athlete_session: `${BASE_API}/athlete_session/`,
-};
 
 const FILTER_PARAMS = {
   track: "timestamp_gte",
@@ -226,19 +211,9 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function readSyncState() {
-  if (!fs.existsSync(SYNC_STATE_FILE)) {
-    fs.writeFileSync(SYNC_STATE_FILE, JSON.stringify({}), "utf-8");
-  }
-  return JSON.parse(fs.readFileSync(SYNC_STATE_FILE, "utf-8"));
-}
-
-function writeSyncState(state) {
-  const allowed = ENTITIES_WITH_DATE_TRACKING;
-  const filtered = Object.fromEntries(
-    Object.entries(state).filter(([key]) => allowed.includes(key))
-  );
-  fs.writeFileSync(SYNC_STATE_FILE, JSON.stringify(filtered, null, 2), "utf-8");
+// 📁 Путь к файлу состояния синхронизации по ID источника
+function getSyncStatePath(apiId) {
+  return path.join(__dirname, "last_syncs", `${apiId}.json`);
 }
 
 function hashRecord(record) {
@@ -268,20 +243,14 @@ function logStep(msg) {
   console.log(`\n🔹 ${msg}`);
 }
 
-async function authenticate() {
-  const res = await axios.post(AUTH_URL, {
-    username: process.env.GPEXE_USER,
-    password: process.env.GPEXE_PASS,
-  });
-  return res.data.token;
-}
+// ⛓️ Авторизация теперь зависит от параметров API
 
 async function fetchAll(entity, baseUrl, token, since = null) {
-  logStep(`Загрузка "${entity}" с API...`);
+  logStep(`Загрузка "${entity}" с API ${baseUrl}...`);
 
   const results = [];
   let page = 1;
-  let url = `${baseUrl}?limit=100`;
+  let url = `${baseUrl}/${entity}/?limit=100`;
 
   const filterParam = FILTER_PARAMS[entity];
   if (filterParam && since) {
@@ -352,7 +321,16 @@ async function saveToDb(entity, records) {
     const hashOld = existingMap.get(cleaned.id);
 
     if (hashNew !== hashOld) {
-      await knex(entity).insert(cleaned).onConflict("id").merge();
+      try {
+        await knex(entity).insert(cleaned).onConflict("id").merge();
+        if (hashOld) updated++;
+        else inserted++;
+      } catch (err) {
+        console.error(
+          `❌ Ошибка при сохранении записи в ${entity}:`,
+          err.message
+        );
+      }
       if (hashOld) updated++;
       else inserted++;
     }
@@ -362,72 +340,12 @@ async function saveToDb(entity, records) {
     `✅ ${entity}: скачано ${records.length}, новых ${inserted}, обновлено ${updated}`
   );
 }
-
-async function fetchAthleteThresholds(token, athletes, since = null) {
-  const all = [];
-  for (const athlete of athletes) {
-    try {
-      await sleep(300);
-      const res = await axios.get(
-        `${BASE_API}/athlete/${athlete.id}/thresholds/`,
-        {
-          headers: {Authorization: `Token ${token}`},
-          timeout: 10000,
-        }
-      );
-
-      const data = res.data;
-
-      const addThreshold = (metric, value, created_at) => {
-        if (!value || isNaN(value)) return;
-        if (!since || (created_at && created_at > since)) {
-          all.push({
-            id: parseInt(
-              `${athlete.id}${metric}`.replace(/\D/g, "").slice(0, 10)
-            ),
-            athlete: athlete.id,
-            metric,
-            value,
-            created_at: created_at || null,
-          });
-        }
-      };
-
-      if (Array.isArray(data)) {
-        for (const t of data) {
-          addThreshold(t.metric, t.value, t.created_at);
-        }
-      } else if (typeof data === "object") {
-        const keys = ["vo2_max", "hr_max", "hr_min", "speed_max", "v0", "a0"];
-        const created_at = data.validity_start || null;
-        keys.forEach((key) => {
-          if (key in data) addThreshold(key, data[key], created_at);
-        });
-      }
-    } catch (err) {
-      console.warn(
-        `⚠️ athlete_thresholds for athlete ${athlete.id} not loaded`,
-        err.message
-      );
-    }
-  }
-
-  return all;
-}
 function logToFile(message) {
   const timestamp = new Date().toISOString();
   fs.appendFileSync(ERROR_LOG_FILE, `[${timestamp}] ${message}\n`, "utf-8");
 }
-function parseTimeToMinutes(timeStr) {
-  if (!timeStr || typeof timeStr !== "string") return 0;
-  const parts = timeStr.split(":");
-  const minutes = parseInt(parts[0] || "0", 10);
-  const seconds = parseInt(parts[1] || "0", 10);
-  return minutes + seconds / 60;
-}
-
-async function fetchAthleteSessionMore(token, sessionId) {
-  const url = `${BASE_API}/athlete_session/${sessionId}/more/`;
+async function fetchAthleteSessionMore(baseUrl, token, sessionId) {
+  const url = `${baseUrl}/athlete_session/${sessionId}/more/`;
   try {
     await sleep(300);
     const res = await axios.get(url, {
@@ -499,20 +417,49 @@ function mapMoreFieldsToSession(more) {
   };
 }
 
-async function syncData() {
+async function syncData({baseUrl, username, password, apiId}) {
   console.log(
-    `\n=== 🔁 СИНХРОНИЗАЦИЯ НАЧАЛАСЬ (${new Date().toLocaleTimeString()}) ===\n`
+    `\n=== 🔁 СИНХРОНИЗАЦИЯ НАЧАЛАСЬ для API #${apiId} (${new Date().toLocaleTimeString()}) ===\n`
   );
 
-  const token = await authenticate();
+  const AUTH_URL = `${baseUrl}-token-auth/`;
+  const token = (await axios.post(AUTH_URL, {username, password})).data.token;
+
+  const SYNC_STATE_FILE = path.join(__dirname, `last_syncs/${apiId}.json`);
+
+  if (!fs.existsSync(path.dirname(SYNC_STATE_FILE))) {
+    fs.mkdirSync(path.dirname(SYNC_STATE_FILE), {recursive: true});
+  }
+
+  const readSyncState = () => {
+    if (!fs.existsSync(SYNC_STATE_FILE)) {
+      fs.writeFileSync(SYNC_STATE_FILE, JSON.stringify({}), "utf-8");
+    }
+    return JSON.parse(fs.readFileSync(SYNC_STATE_FILE, "utf-8"));
+  };
+
+  const writeSyncState = (state) => {
+    const allowed = ENTITIES_WITH_DATE_TRACKING;
+    const filtered = Object.fromEntries(
+      Object.entries(state).filter(([key]) => allowed.includes(key))
+    );
+    fs.writeFileSync(
+      SYNC_STATE_FILE,
+      JSON.stringify(filtered, null, 2),
+      "utf-8"
+    );
+  };
+
+  const allEntities = Object.keys(TABLE_FIELDS); // все поддерживаемые сущности
+
   const syncState = readSyncState();
   const newState = {...syncState};
   const allData = {};
 
-  for (const [entity, url] of Object.entries(ENTITY_ENDPOINTS)) {
+  for (const entity of allEntities) {
     try {
       const since = syncState[entity] || null;
-      const data = await fetchAll(entity, url, token, since);
+      const data = await fetchAll(entity, baseUrl, token, since);
       allData[entity] = data;
 
       const dateFields = DATE_FIELDS_PER_ENTITY[entity] || [];
@@ -533,9 +480,7 @@ async function syncData() {
           console.log(`📌 Последняя дата для ${entity}: ${latest}`);
           newState[entity] = latest;
         } else {
-          console.log(
-            `⚠️ Нет подходящих дат для ${entity}, не обновляем состояние.`
-          );
+          console.log(`⚠️ Нет подходящих дат для ${entity}`);
         }
       }
     } catch (err) {
@@ -570,29 +515,43 @@ async function syncData() {
     await Promise.all(
       allData.athlete_session.map((session, i) =>
         limit(async () => {
-          await sleep(500); // Пауза между запросами
+          try {
+            await sleep(500); // Пауза между запросами
 
-          const more = await fetchAthleteSessionMore(token, session.id);
+            const more = await fetchAthleteSessionMore(
+              baseUrl,
+              token,
+              session.id
+            );
 
-          if (more) {
-            const mapped = mapMoreFieldsToSession(more);
-            allData.athlete_session[i] = {
-              ...session,
-              ...mapped,
-            };
+            if (more) {
+              const mapped = mapMoreFieldsToSession(more);
+              allData.athlete_session[i] = {
+                ...session,
+                ...mapped,
+              };
 
-            processedCount++;
+              processedCount++;
 
-            if (
-              processedCount % 10 === 0 ||
-              processedCount === allData.athlete_session.length
-            ) {
-              console.log(
-                `✅ Обработано сессий: ${processedCount}/${allData.athlete_session.length}`
-              );
+              if (
+                processedCount % 10 === 0 ||
+                processedCount === allData.athlete_session.length
+              ) {
+                console.log(
+                  `✅ Обработано сессий: ${processedCount}/${allData.athlete_session.length}`
+                );
+              }
+            } else {
+              console.warn(`⚠️ Нет данных /more для session id=${session.id}`);
             }
-          } else {
-            console.warn(`⚠️ Нет данных /more для session id=${session.id}`);
+          } catch (err) {
+            console.warn(
+              `❌ Ошибка в more() session id=${session.id}:`,
+              err.message
+            );
+            logToFile(
+              `athlete_session/${session.id}/more failed: ${err.message}`
+            );
           }
         })
       )
@@ -633,7 +592,7 @@ async function syncData() {
       for (const kpi of KPI_FIELDS) {
         try {
           const res = await axios.get(
-            `${BASE_API}/team_session/${teamSessionId}/series/?field=${kpi}`,
+            `${baseUrl}/team_session/${teamSessionId}/series/?field=${kpi}`,
             {headers: {Authorization: `Token ${token}`}}
           );
 
@@ -662,7 +621,7 @@ async function syncData() {
       if (missing) {
         try {
           const res = await axios.get(
-            `${BASE_API}/team_session/${teamSessionId}/details/`,
+            `${baseUrl}/team_session/${teamSessionId}/details/`,
             {
               headers: {Authorization: `Token ${token}`},
             }
@@ -740,7 +699,7 @@ async function syncData() {
 
           try {
             const res = await axios.get(
-              `${BASE_API}/athlete/${athlete.id}/thresholds/`,
+              `${baseUrl}/athlete/${athlete.id}/thresholds/`,
               {
                 headers: {Authorization: `Token ${token}`},
                 timeout: 10000,
@@ -812,30 +771,41 @@ async function syncData() {
     }
   }
 
-  // сохранить в БД
   for (const [entity, records] of Object.entries(allData)) {
     await saveToDb(entity, records);
   }
 
   writeSyncState(newState);
   console.log(
-    `\n✅ СИНХРОНИЗАЦИЯ ЗАВЕРШЕНА (${new Date().toLocaleTimeString()})`
+    `\n✅ СИНХРОНИЗАЦИЯ ЗАВЕРШЕНА ДЛЯ API #${apiId} (${new Date().toLocaleTimeString()})`
   );
 }
-
 async function syncOnce() {
   console.log("🔁 Запуск синхронизации (однократный)");
   try {
-    await syncData();
+    const sources = await knex("api_sources").where({active: true});
+
+    for (const source of sources) {
+      console.log(
+        `\n🌐 Синхронизация API ID=${source.id} (${source.base_url})`
+      );
+
+      await syncData({
+        baseUrl: source.base_url,
+        username: source.username,
+        password: source.password,
+        apiId: source.id,
+      });
+    }
   } catch (err) {
     console.error("❌ Ошибка синхронизации:", err.message);
   }
 }
 
-// Если запущен напрямую: синхронизировать один раз
-if (require.main === module) {
-  syncData().catch(console.error);
-}
+// // Если запущен напрямую: синхронизировать один раз
+// if (require.main === module) {
+//   syncData().catch(console.error);
+// }
 // Экспорт для использования в index.js
 module.exports = {
   syncData,
