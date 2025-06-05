@@ -35,7 +35,7 @@ async function getAspData(athleteId, month) {
   const allSessions = await knex("athlete_session as a")
     .join("team_session as t", "a.teamsession", "t.id")
     .where("a.athlete", athleteId)
-    .whereIn("t.category", [5272, 5275])
+    .whereIn("t.category", [5272, 5275, 3792, 3795])
     .select("a.*");
 
   // Фильтрация по дате через datetime_intervals
@@ -101,7 +101,7 @@ async function getMppData(athleteId, month) {
     .join("track as t", "a.track", "t.id")
     .join("team_session as ts", "a.teamsession", "ts.id")
     .where("a.athlete", athleteId)
-    .whereIn("ts.category", [5272, 5275])
+    .whereIn("ts.category", [5272, 5275, 3792, 3795])
     .andWhereRaw("strftime('%Y-%m', t.timestamp) = ?", [month])
     .select(
       knex.raw("AVG(a.average_p) AS average_p"),

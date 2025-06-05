@@ -102,7 +102,7 @@ module.exports = (bot) => {
     if (!athletes.length)
       return ctx.reply(t(lang, "verify_action.no_athletes"));
 
-    const buttons = athletes.slice(0, 20).map((athlete) => [
+    const buttons = athletes.map((athlete) => [
       {
         text: `${athlete.first_name || ""} ${athlete.last_name || ""}`.trim(),
         callback_data: `verify_final_${userId}_${athlete.id}`,
