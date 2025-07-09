@@ -770,7 +770,44 @@ async function syncData({baseUrl, username, password, apiId}) {
       );
     }
   }
+  // ИСКЛЮЧАЕМ СТАРЫЕ ИГРОКОВ
+  // ID команды, которую исключаем
+  const EXCLUDE_TEAM_ID = 678;
 
+  // 1. Исключаем игроков этой команды
+  if (allData.player?.length) {
+    allData.player = allData.player.filter(
+      (player) => player.team !== EXCLUDE_TEAM_ID
+    );
+  }
+
+  // 2. Получаем id атлетов из этой команды (чтобы их тоже исключить)
+  const athleteIdsFromExcludedTeam = new Set(
+    (allData.player || [])
+      .filter((p) => p.team === EXCLUDE_TEAM_ID)
+      .map((p) => p.athlete)
+  );
+
+  // 3. Исключаем таких атлетов из athlete
+  if (allData.athlete?.length) {
+    allData.athlete = allData.athlete.filter(
+      (athlete) => !athleteIdsFromExcludedTeam.has(athlete.id)
+    );
+  }
+
+  // 4. Исключаем связанные athlete_threshold и athlete_session
+  if (allData.athlete_threshold?.length) {
+    allData.athlete_threshold = allData.athlete_threshold.filter(
+      (t) => !athleteIdsFromExcludedTeam.has(t.athlete)
+    );
+  }
+  if (allData.athlete_session?.length) {
+    allData.athlete_session = allData.athlete_session.filter(
+      (s) => !athleteIdsFromExcludedTeam.has(s.athlete)
+    );
+  }
+
+  // -----------------------------
   for (const [entity, records] of Object.entries(allData)) {
     await saveToDb(entity, records);
   }
