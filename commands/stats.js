@@ -21,8 +21,10 @@ async function showStatsMenu(ctx) {
 
   // Иначе — показать выбор игрока
   const athletes = await db("athlete")
+    .join("player", "athlete.id", "player.athlete")
+    .whereNotNull("player.playingrole")
     .whereIn("id", athleteIds)
-    .select("id", "first_name", "last_name");
+    .select("athlete.id", "athlete.first_name", "athlete.last_name");
 
   const keyboard = new InlineKeyboard();
   for (const a of athletes) {
