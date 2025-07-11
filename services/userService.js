@@ -90,11 +90,17 @@ async function getFullUser(id) {
 }
 async function getAthleteIdsForUser(user) {
   if (user.isHeadCoach) {
-    return await db("athlete").pluck("id");
+    return await db("athlete")
+      .join("player", "athlete.id", "player.athlete")
+      .whereNotNull("player.playingrole")
+      .pluck("id");
   }
 
   if (user.role === "coach" && user.teamId) {
-    return await db("player").where({team: user.teamId}).pluck("athlete");
+    return await db("player")
+      .where({team: user.teamId})
+      .whereNotNull("playingrole")
+      .pluck("athlete");
   }
 
   if (user.role === "user" && user.athleteId) {

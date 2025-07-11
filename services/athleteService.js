@@ -13,7 +13,9 @@ async function searchAthletesByName(query, clubId) {
 async function getAthletesByClubId(clubId) {
   return await db("athlete")
     .where("club", clubId)
-    .select("id", "first_name", "last_name");
+    .join("player", "athlete.id", "player.athlete")
+    .whereNotNull("player.playingrole")
+    .select("athlete.id", "athlete.first_name", "athlete.last_name");
 }
 async function getAthleteById(id) {
   return await db("athlete").where("id", id).first();
