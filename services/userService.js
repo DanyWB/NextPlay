@@ -90,10 +90,11 @@ async function getFullUser(id) {
 }
 async function getAthleteIdsForUser(user) {
   if (user.isHeadCoach) {
-    return await db("athlete")
+    const rows = await db("athlete")
       .join("player", "athlete.id", "player.athlete")
       .whereNotNull("player.playingrole")
-      .pluck("athlete.id");
+      .select("athlete.id as athlete_id");
+    return rows.map((row) => row.athlete_id);
   }
 
   if (user.role === "coach" && user.teamId) {
