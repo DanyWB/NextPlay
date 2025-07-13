@@ -23,7 +23,7 @@ async function showStatsMenu(ctx) {
   const athletes = await db("athlete")
     .join("player", "athlete.id", "player.athlete")
     .whereNotNull("player.playingrole")
-    .whereIn("id", athleteIds)
+    .whereIn("athlete.id", athleteIds)
     .select("athlete.id", "athlete.first_name", "athlete.last_name");
 
   const keyboard = new InlineKeyboard();
