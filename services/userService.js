@@ -93,7 +93,7 @@ async function getAthleteIdsForUser(user) {
     return await db("athlete")
       .join("player", "athlete.id", "player.athlete")
       .whereNotNull("player.playingrole")
-      .pluck("id");
+      .pluck("athlete.id");
   }
 
   if (user.role === "coach" && user.teamId) {
