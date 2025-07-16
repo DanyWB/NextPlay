@@ -30,6 +30,12 @@ async function setUserCommands(user, lang, bot) {
       {command: "my_index", description: t(lang, "commands.my_index")},
       {command: "me_status", description: t(lang, "commands.me_status")}
     );
+    if (isCoach || isHeadCoach) {
+      commands.push({
+        command: "rpe_stats",
+        description: "Статистика RPE игрок",
+      });
+    }
   }
 
   if (user.is_admin) {
