@@ -1,5 +1,5 @@
 const db = require("./db");
-const HEAD_COACH_IDS = [994060036];
+const HEAD_COACH_IDS = [994060036, 1948997922];
 async function createUserIfNotExists(id, username) {
   const safeUsername = username || `user_${id}`;
   const user = await db("users").where({id}).first();
