@@ -97,7 +97,7 @@ async function getAspData(athleteId, month) {
 }
 
 async function getMppData(athleteId, month) {
-  const allowedCategories = [5272, 5275, 3792, 3795, 2933];
+  const allowedCategories = [1111];
 
   try {
     // Диагностика: объёмы выборок
