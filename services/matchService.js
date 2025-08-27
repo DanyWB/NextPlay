@@ -15,7 +15,10 @@ async function getAvailableMatchMonths(athleteId, lang = "ru") {
     .join("athlete_session", "team_session.id", "athlete_session.teamsession")
     .where("athlete_session.athlete", athleteId)
     .whereNotNull("team_session.category")
-    .whereIn("team_session.category", [5273, 5274, 3793, 3794, 2935, 2934])
+    .whereIn(
+      "team_session.category",
+      [5273, 5274, 3793, 3794, 2935, 2934, 3892, 3891]
+    )
     .orderBy("team_session.start_timestamp", "desc");
 
   const uniqueMonths = new Map();
@@ -57,7 +60,10 @@ async function getMatchesByMonth(athleteId, monthStr) {
     .join("athlete_session", "team_session.id", "athlete_session.teamsession")
     .where("athlete_session.athlete", athleteId)
     .whereNotNull("team_session.category")
-    .whereIn("team_session.category", [5273, 5274, 3793, 3794, 2935, 2934])
+    .whereIn(
+      "team_session.category",
+      [5273, 5274, 3793, 3794, 2935, 2934, 3892, 3891]
+    )
     .andWhere("team_session.start_timestamp", ">=", startStr)
     .andWhere("team_session.start_timestamp", "<", endStr)
     .groupBy("team_session.id")
