@@ -110,5 +110,14 @@ async function getMppData(athleteId, month) {
       knex.raw("SUM(a.equivalent_distance) AS equivalent_distance")
     )
     .first();
+
+  if (!result || !result.average_p) return null;
+
+  return {
+    average_p: parseFloat(result.average_p.toFixed(2)),
+    total_energy: Math.round(result.total_energy),
+    anaerobic_energy: Math.round(result.anaerobic_energy),
+    equivalent_distance: Math.round(result.equivalent_distance),
+  };
 }
 module.exports = {getAvailableMonths, getAspData, getMppData};
