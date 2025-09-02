@@ -9,6 +9,7 @@ const {formatWeekRange} = require("../utils/dateUtils");
 const {
   generateEccentricChart,
   generateAnaerobicChart,
+  generateEdwardsChart,
 } = require("../utils/chartGenerator");
 const db = require("../services/db");
 
@@ -31,7 +32,9 @@ module.exports = (bot) => {
     });
     keyboard.text(translate("back"), "back:menu");
 
-    await ctx.deleteMessage();
+    try {
+      await ctx.deleteMessage();
+    } catch (_) {}
     await ctx.reply(translate("title"), {
       reply_markup: keyboard,
     });
@@ -62,9 +65,6 @@ module.exports = (bot) => {
   });
 
   bot.callbackQuery(/^index:([^:]+):(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
-    try {
-      await ctx.deleteMessage();
-    } catch (_) {}
     const [_, indexName, weekStartStr] = ctx.match;
     const lang = await getUserLang(ctx);
     const translate = (key) => t(lang, key);
@@ -100,6 +100,9 @@ module.exports = (bot) => {
     if (!values.length) {
       return ctx.editMessageText(translate("my_index.no_data_week"));
     }
+    try {
+      await ctx.deleteMessage();
+    } catch (_) {}
 
     const avg = values.reduce((a, b) => a + b, 0) / values.length;
 
@@ -156,6 +159,31 @@ module.exports = (bot) => {
         caption: `${translate("my_index.desc_" + indexName)}\n\n${translate(
           "my_index.average_value"
         )}: *${avg.toFixed(2)}%*`,
+        parse_mode: "Markdown",
+        reply_markup: keyboard,
+      });
+    }
+    // edwards_tl
+    if (indexName === "edwards_tl") {
+      const dataByDay = rows
+        .map((r) => ({
+          date: r.datetime_intervals.split("|")[0].slice(0, 10),
+          value: parseFloat(r[indexName]),
+        }))
+        .filter((d) => !isNaN(d.value));
+
+      const buffer = await generateEdwardsChart(dataByDay, avg, fullName, lang);
+      const photo = new InputFile(buffer, "edwards_tl.png");
+
+      const keyboard = new InlineKeyboard().text(
+        translate("my_index.back"),
+        "index:back"
+      );
+
+      return ctx.replyWithPhoto(photo, {
+        caption: `${translate("my_index.desc_edwards_tl")}\n\n${translate(
+          "my_index.average_value"
+        )}: *${avg.toFixed(0)}*`,
         parse_mode: "Markdown",
         reply_markup: keyboard,
       });

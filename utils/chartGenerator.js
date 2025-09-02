@@ -787,10 +787,165 @@ async function generateAnaerobicChart(data, avg, username, lang = "ua") {
   return await chartJSNodeCanvasAnIndex.renderToBuffer(config);
 }
 
+const chartJSNodeCanvasEdIndex = new ChartJSNodeCanvas({
+  width: 1600,
+  height: 1000,
+  backgroundColour: "#1e1e1e",
+});
+
+/**
+ * Edwards TL weekly chart
+ * @param {Array<{date:string,value:number}>} dataByDay  // [{date:'2025-03-12', value: 145}, ...]
+ * @param {number} avg
+ * @param {string} fullName
+ * @param {string} lang  // 'uk' | 'ru' | 'en'
+ * @returns {Promise<Buffer>}
+ */
+
+async function generateEdwardsChart(dataByDay, avg, fullName, lang = "uk") {
+  // сортируем по дате и собираем оси
+  const data = [...dataByDay]
+    .filter((d) => typeof d.value === "number" && !isNaN(d.value))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  const labels = data.map((d) => d.date);
+  const values = data.map((d) => Math.round(d.value));
+
+  // повторители для горизонтальных линий
+  const repeat = (n, v) => Array.from({length: n}, () => v);
+  const n = labels.length;
+
+  const i18n =
+    {
+      uk: {
+        title: `Edwards TL за тиждень — ${fullName}`,
+        yTitle: "Edwards TL",
+        legendMain: "Edwards TL",
+        legendAvg: "Середнє значення",
+        legendHi: "Високе навантаження (200+)",
+        legendLo: "Легке навантаження (50)",
+        xTitle: "Дата",
+      },
+      ru: {
+        title: `Edwards TL за неделю — ${fullName}`,
+        yTitle: "Edwards TL",
+        legendMain: "Edwards TL",
+        legendAvg: "Среднее значение",
+        legendHi: "Высокая нагрузка (200+)",
+        legendLo: "Лёгкая нагрузка (50)",
+        xTitle: "Дата",
+      },
+      en: {
+        title: `Edwards TL (weekly) — ${fullName}`,
+        yTitle: "Edwards TL",
+        legendMain: "Edwards TL",
+        legendAvg: "Average",
+        legendHi: "High load (200+)",
+        legendLo: "Light load (50)",
+        xTitle: "Date",
+      },
+    }[lang] || i18n.uk;
+
+  const configuration = {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        // синяя линия индекса
+        {
+          label: i18n.legendMain,
+          data: values,
+          borderColor: "#29B6F6",
+          backgroundColor: "transparent",
+          borderWidth: 3,
+          pointRadius: 4,
+          pointHoverRadius: 5,
+          tension: 0.25,
+        },
+        // красная пунктирная — среднее
+        {
+          label: i18n.legendAvg,
+          data: repeat(n, avg),
+          borderColor: "#EF5350",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          borderDash: [8, 6],
+          pointRadius: 0,
+          tension: 0,
+        },
+        // оранжевая пунктир — 200 (опасный уровень)
+        {
+          label: i18n.legendHi,
+          data: repeat(n, 200),
+          borderColor: "#FFB300",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          borderDash: [6, 6],
+          pointRadius: 0,
+          tension: 0,
+        },
+        // зелёная пунктир — 50 (лёгкий уровень)
+        {
+          label: i18n.legendLo,
+          data: repeat(n, 50),
+          borderColor: "#66BB6A",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          borderDash: [6, 6],
+          pointRadius: 0,
+          tension: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {color: "#fff", boxWidth: 14, boxHeight: 2},
+        },
+        title: {
+          display: true,
+          text: i18n.title,
+          color: "#fff",
+          font: {size: 22, weight: "bold"},
+          padding: {top: 20, bottom: 20},
+        },
+        tooltip: {
+          mode: "index",
+          intersect: false,
+          callbacks: {
+            label: (ctx) =>
+              ` ${ctx.dataset.label}: ${Math.round(ctx.parsed.y)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: {display: true, text: i18n.xTitle, color: "#ddd"},
+          ticks: {color: "#ddd"},
+          grid: {color: "rgba(255,255,255,0.08)"},
+        },
+        y: {
+          beginAtZero: true,
+          suggestedMax: Math.max(220, ...values, Math.round(avg) + 40),
+          title: {display: true, text: i18n.yTitle, color: "#ddd"},
+          ticks: {color: "#ddd"},
+          grid: {color: "rgba(255,255,255,0.08)"},
+        },
+      },
+      elements: {point: {borderWidth: 0}},
+    },
+  };
+
+  return chartJSNodeCanvasEdIndex.renderToBuffer(configuration);
+}
+
 module.exports = {
   generateChartImage,
   generateMatchChartImage,
   generateQuickGaugeImage,
   generateEccentricChart,
   generateAnaerobicChart,
+  generateEdwardsChart,
 };
